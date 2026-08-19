@@ -31,8 +31,22 @@ You will need:
 3. **Project Settings → API → JWT Settings**, copy the JWT Secret →
    `SUPABASE_JWT_SECRET`. This lets the app verify sessions locally instead of
    making a network call on every request. Worth doing.
-4. **Project Settings → Database → Connection string → URI**, copy it →
-   `DATABASE_URL`. Replace `[YOUR-PASSWORD]` with the password from step 1.
+4. **Project Settings → Database → Connection string** → choose **Session
+   pooler**, copy it → `DATABASE_URL`. Replace `[YOUR-PASSWORD]` with the
+   password from step 1.
+
+   **Not the direct connection.** `db.<ref>.supabase.co` is IPv6-only unless you
+   buy Supabase's IPv4 add-on, and most networks and hosts are IPv4-only — the
+   hostname has no A record, so you get `getaddrinfo ENOTFOUND`, which reads
+   like a typo but is not. The session pooler host
+   (`aws-0-<region>.pooler.supabase.com`) has IPv4 and works everywhere.
+
+   Note the username changes too: `postgres` becomes `postgres.<project-ref>`.
+
+   **Not the transaction pooler either** (port 6543) — it does not support
+   prepared statements, which node-postgres uses. Session pooler is port 5432.
+
+   If your password contains `@ : / ? #` or `%`, URL-encode it (`@` → `%40`).
 5. **Authentication → Providers → Google**: switch it on, paste in your Google
    OAuth client ID and secret (create them in Google Cloud Console → APIs &
    Services → Credentials → OAuth client ID → Web application).
@@ -220,11 +234,22 @@ pm2 restart refer-gemzonline
 
 ## Path B — hPanel Node.js hosting
 
+> **Use the right Git screen.** hPanel has two, and they are not
+> interchangeable. **Websites → Git** serves files exactly as committed, runs no
+> build step, and per Hostinger's own documentation does **not** support Node.js
+> applications — connecting this repo there returns a 403. The one you want is
+> **Advanced → Node.js → Import Git Repository**, which authorises GitHub
+> separately and installs dependencies before starting the app.
+>
+> If GitHub authorisation still 403s on the Node.js screen, the Hostinger GitHub
+> App does not have access to the repo. Grant it at
+> **github.com/settings/installations → Hostinger → Repository access**.
+
 Hostinger's Business and Cloud plans include a Node.js app manager. It works,
 with two caveats worth knowing up front:
 
 - **The scheduler only runs while the app process is alive.** Shared hosting may
-  idle your app out. If reminders stop firing, that is why — see B6.
+  idle your app out. If reminders stop firing, that is why — see B7.
 - You get less control over restarts and logs than on a VPS.
 
 ### B1. Create the application
@@ -234,15 +259,17 @@ hPanel → **Advanced → Node.js** → Create application:
 | Field | Value |
 |---|---|
 | Node version | 20.x (or the highest offered) |
+| Source | **Import Git Repository** → `caryR1/refer.gemzonline`, branch `main` |
 | Application root | `refer-gemzonline` |
 | Application URL | `refer.gemzonline.com` |
 | Application startup file | `src/server.js` |
+| Build / install command | `npm install` |
 
 ### B2. Get the code up
 
-Either use hPanel's Git integration pointing at
-`https://github.com/caryR1/refer.gemzonline.git`, or upload the files over SFTP
-into the application root. Do not upload `node_modules`.
+The Git import in B1 handles this. If you would rather not connect GitHub,
+upload the files over SFTP into the application root instead — but do not upload
+`node_modules`; let hPanel install them.
 
 ### B3. Environment variables
 
@@ -252,38 +279,41 @@ environment variable. There is no `.env` file on this path — hPanel injects th
 Set `PORT` to whatever hPanel tells you to use (often it sets this itself —
 leave it alone if so).
 
-### B4. Install and migrate
+### B4. Create the database schema
 
-Use the **Run NPM Install** button, then hPanel's terminal (or SSH if your plan
-has it):
+**No terminal needed.** Open the Supabase **SQL Editor** and run, in order:
 
-```bash
-cd ~/refer-gemzonline
-npm run db:push
-npm run db:seed
-npm run create:admin -- you@gemzonline.com "Your Name" "a-strong-password"
-```
+1. the contents of `db/schema.sql`
+2. the contents of `db/policies.sql`
 
-If your plan has no terminal at all, run these three commands from your own
-machine instead — they only need `DATABASE_URL` and the Supabase keys, and they
-work from anywhere:
+Both are idempotent — re-run them after any upgrade that changes the schema.
 
-```bash
-git clone https://github.com/caryR1/refer.gemzonline.git
-cd refer.gemzonline
-npm install
-cp .env.example .env      # fill in the same values you set in hPanel
-npm run db:push && npm run db:seed && npm run create:admin
-```
+If your plan does give you SSH or an hPanel terminal, `npm run db:push` does the
+same thing in one command.
 
-### B5. Start it
+### B5. Sign in and finish setup
+
+There is no `create:admin` step on this path, and none is needed: **the first
+account created on an empty install automatically becomes an admin.** Visit
+`/signup`, or sign in with Google, and you are in.
+
+Then go to **Admin → Settings → First-run setup** and press **Install
+defaults**. That installs the relationship options and the fifteen default
+message templates — the thing that makes email actually send, since events with
+no matching template send nothing. Tick "also create the sample campaign" if you
+want something to click through before building your own.
+
+The action is idempotent, so it is also how you restore a default template you
+later delete by mistake.
+
+### B6. Start it
 
 Hit **Restart** in the Node.js app screen. Visit
 `https://refer.gemzonline.com/healthz` — you want `{"status":"ok"}`.
 
 Enable SSL in hPanel → **Security → SSL** if it is not already on.
 
-### B6. Keeping the scheduler alive
+### B7. Keeping the scheduler alive
 
 If the app idles out and reminders stop, the fix is an external ping. Any free
 uptime monitor hitting `https://refer.gemzonline.com/healthz` every 5 minutes
@@ -301,9 +331,12 @@ Work through this once; it catches most of what goes wrong.
 - [ ] `https://refer.gemzonline.com/healthz` returns `{"status":"ok"}`
 - [ ] You can sign in at `/login` with the admin you created
 - [ ] **Admin → Settings** shows database, email and (if configured) WhatsApp green
+- [ ] **Admin → Settings → First-run setup** shows templates and relationship
+      options installed (press **Install defaults** if not)
 - [ ] Send yourself a test email from that page and it **arrives, not in spam**
 - [ ] Google sign-in works from a browser you are not already signed into
-- [ ] **Admin → Campaigns** shows the sample campaign; open `/r/automation-starter`
+- [ ] **Admin → Campaigns** shows the sample campaign, if you installed it;
+      open `/r/automation-starter`
 - [ ] Submit the form as a test prospect end to end: form → acknowledgement →
       thank you → the appointment link in your email
 - [ ] The welcome email arrives with a working "edit appointment" link
@@ -325,14 +358,43 @@ Then set it up for real:
 
 ## 3. When something is wrong
 
+**The site returns 503 on hPanel Node.js hosting.**
+The process is not running, or is not reachable on the port Hostinger assigned.
+A 503 *during* a deployment is normal — the app is down while dependencies
+install and it restarts. If it persists:
+
+- Check the app's **Logs** in hPanel → Advanced → Node.js. Startup now prints
+  the node version, the bound host and port; a crash prints a stack trace.
+- Confirm the **startup file is `src/server.js`** — not `server.js`. A generic
+  guide will tell you the latter and the app will fail with "Cannot find module".
+- Confirm the **build command is `npm install`** and it completed.
+- Do not set `PORT` yourself; let Hostinger assign it. The app reads it.
+- `npm audit` warnings are not a cause of 503. Do not run `npm audit fix
+  --force` to chase one — it upgrades across major versions and can genuinely
+  break the app.
+
+Note that a missing `DATABASE_URL` will *not* cause a 503: the app boots anyway
+and reports the problem on its pages and at `/healthz`.
+
+**`/healthz` returns 200 but says `"database": false`.**
+The app is running fine; it cannot reach Postgres. Check `DATABASE_URL` and
+`DATABASE_SSL=true`. This endpoint returns 200 whenever the process is alive, so
+a 503 from it means the app itself is not running.
+
 **The site returns 502 (VPS).**
 `pm2 logs refer-gemzonline --lines 100`. Usually a bad `DATABASE_URL` or a
 missing environment variable. `pm2 restart refer-gemzonline` after fixing.
 
 **Every page shows an error but `/healthz` says the database is down.**
-Check `DATABASE_URL`. Supabase connection strings need the password substituted
-in, and `DATABASE_SSL=true`. If you are behind a restrictive firewall, use the
-Session pooler URI on port 5432.
+Check `DATABASE_URL`.
+
+If the error is `getaddrinfo ENOTFOUND db.<ref>.supabase.co`, you are using the
+**direct connection string**, which is IPv6-only. Switch to the **session
+pooler** string from the Supabase dashboard — different host, and the username
+gains the project ref. See section 1.1 step 4.
+
+Otherwise: the password must be substituted in (and URL-encoded if it contains
+punctuation), and `DATABASE_SSL=true`.
 
 **Email is not sending.**
 Admin → Settings shows the exact SMTP error. Wrong password is the usual cause;
@@ -345,10 +407,14 @@ SPF and DKIM are not set up. hPanel → Emails → DNS settings.
 The redirect URL is not registered in Supabase → Authentication → URL
 Configuration. It must be exactly `https://refer.gemzonline.com/auth/callback`.
 
+**Emails are not going out at all, and the log shows nothing.**
+No templates are installed. Admin → Settings → First-run setup → Install
+defaults. An event with no matching template sends nothing and logs nothing.
+
 **Reminders are not firing.**
 Check Admin → Settings → Scheduled job history. If nothing is listed, the
 scheduler is not running: confirm `ENABLE_CRON=true` and, on shared hosting, see
-B6. If jobs are listed but nothing sent, check that a template exists with the
+B7. If jobs are listed but nothing sent, check that a template exists with the
 "Appointment reminder" trigger on the channel you enabled, and that the reminder
 slot is switched on for that campaign.
 

@@ -23,13 +23,46 @@ function getPool() {
   return pool;
 }
 
+/**
+ * Turn the two connection failures people actually hit into advice rather than
+ * a bare errno. Both look like typos and are not.
+ */
+function explain(err) {
+  if (!err || !err.message) return err;
+
+  if (err.code === 'ENOTFOUND' && /db\..*\.supabase\.co/.test(err.message)) {
+    err.message = `${err.message}\n\n`
+      + '  That hostname is Supabase\'s DIRECT connection, which is IPv6-only\n'
+      + '  unless you have their IPv4 add-on. On an IPv4-only network it has no\n'
+      + '  address at all, hence ENOTFOUND.\n\n'
+      + '  Use the SESSION POOLER string instead — Supabase dashboard ->\n'
+      + '  Project Settings -> Database -> Connection string -> Session pooler.\n'
+      + '  It looks like:\n'
+      + '    postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres\n'
+      + '  Note the username gains the project ref. Avoid the transaction pooler\n'
+      + '  (port 6543): it does not support the prepared statements pg uses.';
+  }
+
+  if (err.code === '28P01') {
+    err.message = `${err.message}\n\n`
+      + '  Password rejected. If yours contains @ : / ? # or %, it must be\n'
+      + '  URL-encoded inside DATABASE_URL (@ becomes %40).';
+  }
+
+  return err;
+}
+
 /** Run a query. Returns the pg result. */
 async function query(text, params = []) {
   const started = Date.now();
-  const res = await getPool().query(text, params);
-  const ms = Date.now() - started;
-  if (ms > 1000) console.warn(`[db] slow query (${ms}ms): ${text.slice(0, 120)}`);
-  return res;
+  try {
+    const res = await getPool().query(text, params);
+    const ms = Date.now() - started;
+    if (ms > 1000) console.warn(`[db] slow query (${ms}ms): ${text.slice(0, 120)}`);
+    return res;
+  } catch (err) {
+    throw explain(err);
+  }
 }
 
 /** Run a query and return all rows. */

@@ -16,6 +16,76 @@
   </div>
 <% } %>
 
+<div class="card" id="setup">
+  <div class="card-head">
+    <div>
+      <h2>First-run setup</h2>
+      <p class="sub">Installs the relationship options and default message templates. Safe to run more than once.</p>
+    </div>
+  </div>
+
+  <% if (setupStatus.needsSetup) { %>
+    <div class="card-body" style="padding-bottom:0">
+      <div class="alert warn" style="margin-bottom:0">
+        <span>!</span>
+        <div>
+          <strong>Setup has not been run.</strong>
+          Until it is, events fire but nothing is sent — there are no templates to match against.
+        </div>
+      </div>
+    </div>
+  <% } %>
+
+  <div class="table-wrap">
+    <table class="data">
+      <tbody>
+        <tr>
+          <td class="primary">Relationship options</td>
+          <td>
+            <span class="badge <%= setupStatus.relations.installed ? 'green' : 'amber' %>">
+              <%= setupStatus.relations.installed %> installed
+            </span>
+          </td>
+          <td class="muted small">How an agent knows a prospect. <%= setupStatus.relations.expected %> defaults available.</td>
+        </tr>
+        <tr>
+          <td class="primary">Message templates</td>
+          <td>
+            <span class="badge <%= setupStatus.templates.installed ? 'green' : 'amber' %>">
+              <%= setupStatus.templates.installed %> installed
+            </span>
+          </td>
+          <td class="muted small">Welcome, confirmation, reminders, commission alerts. <%= setupStatus.templates.expected %> defaults available.</td>
+        </tr>
+        <tr>
+          <td class="primary">Campaigns</td>
+          <td>
+            <span class="badge <%= setupStatus.campaigns.installed ? 'green' : 'slate' %>">
+              <%= setupStatus.campaigns.installed %>
+            </span>
+          </td>
+          <td class="muted small">Optional sample campaign, if you want something to click through.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-foot">
+    <form method="post" action="/admin/settings/install-defaults" class="flex wrap" style="width:100%">
+      <button class="btn" type="submit" data-busy="Installing…">
+        <%= setupStatus.needsSetup ? 'Install defaults' : 'Restore anything missing' %>
+      </button>
+      <div class="check" style="margin:0">
+        <input type="checkbox" id="sample_campaign" name="sample_campaign" value="1"
+               <%= setupStatus.campaigns.installed ? '' : 'checked' %>>
+        <div><label for="sample_campaign">Also create the sample campaign</label></div>
+      </div>
+      <span class="spacer" style="flex:1"></span>
+      <span class="small muted">Nothing already present is overwritten.</span>
+    </form>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-head"><h2>System health</h2></div>
   <div class="table-wrap">

@@ -13,6 +13,7 @@ const audit = require('../lib/audit');
 const mailer = require('../lib/mailer');
 const whatsapp = require('../lib/whatsapp');
 const relations = require('../lib/relations');
+const setup = require('../lib/setup');
 
 const router = express.Router();
 
@@ -90,10 +91,11 @@ router.get('/audit.csv', async (req, res, next) => {
 
 router.get('/settings', async (req, res, next) => {
   try {
-    const [relationOptions, settingRows, jobRuns] = await Promise.all([
+    const [relationOptions, settingRows, jobRuns, setupStatus] = await Promise.all([
       relations.list(req.tenant.id, { includeInactive: true }),
       db.all('select * from settings where tenant_id = $1', [req.tenant.id]),
       db.all('select * from job_runs order by created_at desc limit 15', []),
+      setup.status(req.tenant.id),
     ]);
 
     const [emailHealth, waHealth, dbHealth] = await Promise.all([
@@ -114,9 +116,50 @@ router.get('/settings', async (req, res, next) => {
       },
       problems: config.validate(),
       tenant: req.tenant,
+      setupStatus,
     });
   } catch (err) {
     next(err);
+  }
+});
+
+/**
+ * One-click first-run setup.
+ *
+ * Installs the relationship options and default message templates, so hosting
+ * without a shell can still be set up. Idempotent — anything already present is
+ * left untouched, which also makes this the way to restore a template that was
+ * deleted by mistake.
+ */
+router.post('/settings/install-defaults', async (req, res, next) => {
+  try {
+    const withSample = util.bool(req.body.sample_campaign);
+    const result = await setup.installAll(req.tenant.id, { sampleCampaign: withSample });
+
+    const parts = [];
+    if (result.relations) parts.push(`${result.relations} relationship option${result.relations === 1 ? '' : 's'}`);
+    if (result.templates) parts.push(`${result.templates} message template${result.templates === 1 ? '' : 's'}`);
+    if (result.campaign) parts.push(`the "${result.campaign}" sample campaign`);
+
+    await audit.log({
+      tenantId: req.tenant.id,
+      req,
+      action: 'settings.defaults_installed',
+      entityType: 'tenant',
+      entityId: req.tenant.id,
+      summary: parts.length
+        ? `${req.user.full_name || req.user.email} installed ${parts.join(', ')}`
+        : `${req.user.full_name || req.user.email} ran setup — everything was already present`,
+      after: result,
+    });
+
+    req.flash('success', parts.length
+      ? `Installed ${parts.join(', ')}.`
+      : 'Everything was already in place — nothing to add.');
+
+    return res.redirect('/admin/settings#setup');
+  } catch (err) {
+    return next(err);
   }
 });
 

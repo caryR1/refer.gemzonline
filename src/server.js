@@ -113,13 +113,24 @@ app.use((req, res, next) => {
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
+/**
+ * Health check.
+ *
+ * Deliberately returns 200 whenever the process is alive, even if the database
+ * is unreachable — it reports that in the body instead. That way a 503 from
+ * this URL means one thing only: the app is not running or not reachable on the
+ * expected port. Mixing "app down" and "database down" into the same status
+ * code makes a deployment problem much harder to diagnose.
+ */
 app.get('/healthz', async (req, res) => {
   const health = await db.healthcheck();
-  res.status(health.ok ? 200 : 503).json({
+  res.status(200).json({
     status: health.ok ? 'ok' : 'degraded',
     database: health.ok,
     error: health.error,
     uptime: Math.round(process.uptime()),
+    node: process.version,
+    port: config.port,
     version: require('../package.json').version,
   });
 });
@@ -155,6 +166,18 @@ app.use((err, req, res, next) => {
 // Boot
 // ---------------------------------------------------------------------------
 async function start() {
+  // Without these, a stray rejection kills the process with no explanation and
+  // the host serves 503 while you guess. Log loudly, then exit so the
+  // supervisor restarts us cleanly.
+  process.on('unhandledRejection', (reason) => {
+    console.error('[fatal] unhandled promise rejection:', reason && reason.stack ? reason.stack : reason);
+  });
+
+  process.on('uncaughtException', (err) => {
+    console.error('[fatal] uncaught exception:', err.stack || err.message);
+    process.exit(1);
+  });
+
   const problems = config.validate();
   if (problems.length) {
     console.warn('\n  Configuration warnings:');
@@ -178,9 +201,24 @@ async function start() {
     }
   }
 
-  const server = app.listen(config.port, () => {
-    console.log(`\n  ${config.appName} listening on port ${config.port}`);
-    console.log(`  ${config.appUrl}\n`);
+  // Bind explicitly to all interfaces. Node does this by default when the host
+  // is omitted, but managed hosts route to the container's external interface
+  // and an implicit bind is one more thing to wonder about at 2am.
+  const server = app.listen(config.port, config.host, () => {
+    console.log(`\n  ${config.appName} listening on ${config.host}:${config.port}`);
+    console.log(`  ${config.appUrl}`);
+    console.log(`  node ${process.version} · ${config.env}\n`);
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`  Port ${config.port} is already in use. Another copy of the app is probably running.`);
+    } else if (err.code === 'EACCES') {
+      console.error(`  Not permitted to bind port ${config.port}. Use the port your host assigns via PORT.`);
+    } else {
+      console.error('  Server failed to start:', err.message);
+    }
+    process.exit(1);
   });
 
   const shutdown = async (signal) => {

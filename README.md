@@ -104,6 +104,9 @@ npm run dev               # http://localhost:3000
 The first account created on an empty install automatically becomes an admin,
 so a fresh deployment can never lock you out.
 
+**Running it locally:** see [LOCAL-DEV.md](LOCAL-DEV.md) — including a test run
+worth doing before you trust it.
+
 **Deploying to Hostinger:** see [DEPLOY-HOSTINGER.md](DEPLOY-HOSTINGER.md),
 which covers both a VPS and hPanel's Node.js hosting.
 
@@ -119,7 +122,9 @@ npm run db:verify     # schema constraints, against a real database
 ```
 
 `npm test` covers the commission arithmetic, the recurring-accrual window, input
-handling and the preference-resolution rule, then compiles all 56 templates.
+handling and the preference-resolution rule; compiles all 56 templates; and
+checks that every route renders a view that exists and every include resolves —
+the mistakes that are otherwise invisible until someone clicks the page.
 
 `db:verify` proves the rules the app depends on are enforced by the database
 rather than merely by convention: one rank per agent per campaign, one default

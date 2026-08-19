@@ -17,6 +17,9 @@ const port = int(process.env.PORT, 3000);
 const config = {
   env: process.env.NODE_ENV || 'development',
   port,
+  // Managed hosts route to the container's external interface, so bind to all
+  // of them rather than loopback. Override with HOST if you need to.
+  host: process.env.HOST || '0.0.0.0',
   appUrl: (process.env.APP_URL || `http://localhost:${port}`).replace(/\/+$/, ''),
   appName: process.env.APP_NAME || 'refer.GemzOnline',
   sessionSecret: process.env.SESSION_SECRET || 'insecure-dev-secret-change-me',

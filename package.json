@@ -13,8 +13,9 @@
     "db:seed": "node scripts/seed.js",
     "db:verify": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/verify.sql",
     "create:admin": "node scripts/create-admin.js",
-    "test": "node scripts/test-units.js && node scripts/check-views.js",
-    "check:views": "node scripts/check-views.js"
+    "test": "node scripts/test-units.js && node scripts/check-views.js && node scripts/check-routes.js",
+    "check:views": "node scripts/check-views.js",
+    "check:routes": "node scripts/check-routes.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
