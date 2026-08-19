@@ -1,0 +1,40 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Dependencies
+node_modules/
+jspm_packages/
+.pnp
+.pnp.js
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Coverage / cache
+coverage/
+.nyc_output/
+.cache/
+.eslintcache
+
+# Misc
+.DS_Store
+*.pid
+*.seed
+*.pid.lock
+.vscode/
+.idea/
