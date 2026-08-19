@@ -1,0 +1,41 @@
+{
+  "name": "refer-gemzonline",
+  "version": "1.0.0",
+  "description": "Multi-tenant referral and lead management platform for refer.GemzOnline.com",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "db:push": "node scripts/db-push.js",
+    "db:seed": "node scripts/seed.js",
+    "db:verify": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/verify.sql",
+    "create:admin": "node scripts/create-admin.js",
+    "test": "node scripts/test-units.js && node scripts/check-views.js",
+    "check:views": "node scripts/check-views.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "compression": "^1.7.4",
+    "connect-flash": "^0.1.1",
+    "cookie-parser": "^1.4.6",
+    "csv-stringify": "^6.5.1",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-ejs-layouts": "^2.5.1",
+    "express-rate-limit": "^7.4.0",
+    "express-session": "^1.18.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "luxon": "^3.5.0",
+    "morgan": "^1.10.0",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.14",
+    "pg": "^8.12.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

@@ -1,0 +1,102 @@
+<div class="page-head">
+  <div>
+    <h1>Campaigns</h1>
+    <p class="sub">Choose what you want to promote. Joining is instant and your link works straight away.</p>
+  </div>
+</div>
+
+<% if (welcome) { %>
+  <div class="alert success">
+    <span>✓</span>
+    <div>
+      <strong>Welcome aboard.</strong> Pick a campaign below to get your first referral link.
+    </div>
+  </div>
+<% } %>
+
+<% if (!campaigns.length) { %>
+  <div class="card">
+    <div class="empty">
+      <%- include('../partials/art/empty-campaigns', { width: 150 }) %>
+      <h3>No campaigns are running yet</h3>
+      <p>When an administrator opens one up, it will appear here for you to join.</p>
+    </div>
+  </div>
+<% } else { %>
+  <% campaigns.forEach(function (c) { var joined = Boolean(c.membership_id); %>
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2><%= c.name %></h2>
+          <p class="sub">
+            <%= c.client_name || 'GemzOnline' %>
+            <% if (joined) { %> · <span class="badge green">Joined</span><% } %>
+          </p>
+        </div>
+        <div class="actions">
+          <% if (joined) { %>
+            <% if (c.link_slug) { %>
+              <button class="btn secondary sm" data-copy="<%= appUrl %>/r/<%= c.link_slug %>">Copy my link</button>
+            <% } %>
+            <form method="post" action="/agent/campaigns/<%= c.id %>/leave"
+                  data-confirm="Leave <%= c.name %>? Your link stops working, but existing leads and earnings are untouched.">
+              <button class="btn secondary sm" type="submit">Leave</button>
+            </form>
+          <% } else { %>
+            <form method="post" action="/agent/campaigns/<%= c.id %>/join">
+              <button class="btn sm" type="submit" data-busy="Joining…">Join this campaign</button>
+            </form>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <% if (c.description) { %><p><%= c.description %></p><% } %>
+
+        <% if (joined && c.profile_name) { %>
+          <fieldset style="margin-bottom:0">
+            <legend>Your terms — <%= c.profile_name %></legend>
+            <dl class="kv">
+              <dt>Initial commission</dt>
+              <dd>
+                <strong><%= util.rateLabel(c.initial_type, c.initial_value, c.currency) %></strong>
+                <% if (c.initial_type === 'percentage') { %>
+                  <span class="muted">of <%= money(c.deal_value, c.currency) %> = <%= money((c.deal_value * c.initial_value) / 100, c.currency) %></span>
+                <% } %>
+              </dd>
+              <% if (c.recurring_enabled) { %>
+                <dt>Recurring</dt>
+                <dd>
+                  <strong><%= util.rateLabel(c.recurring_type, c.recurring_value, c.currency) %></strong> per month
+                  <span class="muted">
+                    <%= c.recurring_months ? 'for up to ' + c.recurring_months + ' months' : 'for as long as the account stays active' %>
+                  </span>
+                </dd>
+              <% } %>
+              <dt>Paid on</dt>
+              <dd>Day <%= c.payout_day %> of the month</dd>
+            </dl>
+          </fieldset>
+        <% } else if (joined) { %>
+          <div class="alert warn">
+            <span>!</span>
+            <div>You are on this campaign, but an admin has not set your commission rank yet. Nothing can be earned until they do.</div>
+          </div>
+        <% } else if (c.profile_count) { %>
+          <p class="small muted mb-0">
+            <%= c.profile_count %> commission rank<%= c.profile_count === 1 ? '' : 's' %> on this campaign.
+            You will be placed on the default when you join.
+          </p>
+        <% } %>
+
+        <% if (c.landing_page_url) { %>
+          <p class="mt-2 mb-0">
+            <a class="small" href="<%= c.landing_page_url %>" target="_blank" rel="noopener noreferrer">
+              <%= c.landing_link_label || 'Click here for more information' %> ↗
+            </a>
+          </p>
+        <% } %>
+      </div>
+    </div>
+  <% }); %>
+<% } %>

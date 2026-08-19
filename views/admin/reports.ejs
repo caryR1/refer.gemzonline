@@ -1,0 +1,134 @@
+<div class="page-head">
+  <div>
+    <h1>Reports</h1>
+    <p class="sub">Where the leads come from, and what they turn into.</p>
+  </div>
+  <div class="actions"><a class="btn secondary" href="/admin/reports/agents.csv">Agent performance CSV</a></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Pipeline</h2></div>
+  <div class="card-body">
+    <%
+      var order = ['new','contacted','appointment_set','closed_won','closed_lost'];
+      var max = Math.max(1, ...order.map(function (k) { return funnel[k] || 0; }));
+    %>
+    <% order.forEach(function (k) { var meta = statusMeta(k); var n = funnel[k] || 0; %>
+      <div style="margin-bottom:12px">
+        <div class="flex" style="margin-bottom:4px">
+          <span class="badge <%= meta.tone %>"><%= meta.label %></span>
+          <span class="spacer" style="flex:1"></span>
+          <strong><%= n %></strong>
+        </div>
+        <div style="height:8px;background:var(--grey-100);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:<%= Math.round((n / max) * 100) %>%;background:var(--navy-600)"></div>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Agent performance</h2></div>
+  <% if (!byAgent.length) { %>
+    <div class="card-body"><p class="muted small mb-0">No agent activity yet.</p></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th>Agent</th><th class="num">Leads</th><th class="num">Won</th>
+              <th class="num">Conversion</th><th class="num">Earned</th><th class="num">Paid</th></tr>
+        </thead>
+        <tbody>
+          <% byAgent.forEach(function (a) { %>
+            <tr>
+              <td><a class="primary" href="/admin/agents/<%= a.id %>"><%= a.full_name || a.email %></a></td>
+              <td class="num"><%= a.leads %></td>
+              <td class="num"><%= a.won %></td>
+              <td class="num"><%= a.leads ? Math.round((a.won / a.leads) * 100) : 0 %>%</td>
+              <td class="num"><strong><%= money(a.earned) %></strong></td>
+              <td class="num muted"><%= money(a.paid) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Campaign performance</h2></div>
+    <% if (!byCampaign.length) { %>
+      <div class="card-body"><p class="muted small mb-0">No campaigns yet.</p></div>
+    <% } else { %>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Campaign</th><th class="num">Leads</th><th class="num">Won</th><th class="num">Recurring</th><th class="num">Commission</th></tr></thead>
+          <tbody>
+            <% byCampaign.forEach(function (c) { %>
+              <tr>
+                <td><a class="primary" href="/admin/campaigns/<%= c.id %>"><%= c.name %></a></td>
+                <td class="num"><%= c.leads %></td>
+                <td class="num"><%= c.won %></td>
+                <td class="num"><%= c.active_accounts %></td>
+                <td class="num"><%= money(c.commission) %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Which relationships convert</h2>
+        <p class="sub">Whether "sister" really does close better than "acquaintance".</p>
+      </div>
+    </div>
+    <% if (!relationPerformance.length) { %>
+      <div class="card-body"><p class="muted small mb-0">No data yet.</p></div>
+    <% } else { %>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Relationship</th><th class="num">Leads</th><th class="num">Won</th><th class="num">Rate</th></tr></thead>
+          <tbody>
+            <% relationPerformance.forEach(function (r) { %>
+              <tr>
+                <td class="primary"><%= r.relation %></td>
+                <td class="num"><%= r.leads %></td>
+                <td class="num"><%= r.won %></td>
+                <td class="num"><%= r.leads ? Math.round((r.won / r.leads) * 100) : 0 %>%</td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Lead volume by month</h2></div>
+  <% if (!byMonth.length) { %>
+    <div class="card-body"><p class="muted small mb-0">No data yet.</p></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Month</th><th class="num">Leads</th><th class="num">Won</th><th class="num">Conversion</th></tr></thead>
+        <tbody>
+          <% byMonth.forEach(function (m) { %>
+            <tr>
+              <td class="primary"><%= tz.periodLabel(m.month) %></td>
+              <td class="num"><%= m.leads %></td>
+              <td class="num"><%= m.won %></td>
+              <td class="num"><%= m.leads ? Math.round((m.won / m.leads) * 100) : 0 %>%</td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

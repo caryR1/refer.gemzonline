@@ -1,0 +1,154 @@
+<div class="page-head">
+  <div>
+    <h1>Hello, <%= (user.full_name || user.email).split(' ')[0] %></h1>
+    <p class="sub">Times shown in <%= user.timezone.replace(/_/g, ' ') %>.</p>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/agent/campaigns">Browse campaigns</a>
+    <a class="btn" href="/agent/links">My links</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat">
+    <div class="label">Total leads</div>
+    <div class="value"><%= totalLeads %></div>
+    <div class="meta"><%= counts.new || 0 %> new · <%= counts.contacted || 0 %> contacted</div>
+  </div>
+  <div class="stat">
+    <div class="label">Appointments set</div>
+    <div class="value"><%= counts.appointment_set || 0 %></div>
+    <div class="meta">Waiting to be closed</div>
+  </div>
+  <div class="stat">
+    <div class="label">Closed / won</div>
+    <div class="value"><%= won %></div>
+    <div class="meta"><%= conversion %>% of your leads</div>
+  </div>
+  <div class="stat accent">
+    <div class="label">Earned to date</div>
+    <div class="value"><%= money(totals.total) %></div>
+    <div class="meta"><%= money(totals.pending) %> pending · <%= money(totals.paid) %> paid</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div>
+    <div class="card">
+      <div class="card-head">
+        <h2>Coming up</h2>
+        <div class="actions"><a class="btn secondary sm" href="/agent/leads?status=appointment_set">All appointments</a></div>
+      </div>
+      <% if (!upcoming.length) { %>
+        <div class="card-body">
+          <p class="muted mb-0 small">Nothing booked yet. When a prospect picks a time, it appears here.</p>
+        </div>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="data">
+            <tbody>
+              <% upcoming.forEach(function (l) { %>
+                <tr>
+                  <td>
+                    <a class="primary" href="/agent/leads/<%= l.id %>"><%= [l.first_name, l.last_name].filter(Boolean).join(' ') || l.email %></a>
+                    <div class="muted"><%= l.campaign_name %></div>
+                  </td>
+                  <td class="tight right">
+                    <div><%= tz.fmtShort(l.appointment_primary_at, user.timezone) %></div>
+                    <div class="muted"><%= tz.fmtRelative(l.appointment_primary_at) %></div>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Recent leads</h2>
+        <div class="actions"><a class="btn secondary sm" href="/agent/leads">View all</a></div>
+      </div>
+      <% if (!recentLeads.length) { %>
+        <div class="empty">
+          <%- include('../partials/art/empty-leads', { width: 140 }) %>
+          <h3>No leads yet</h3>
+          <p>Share a referral link and the people who fill in the form land here.</p>
+          <a class="btn" href="/agent/links">Get my link</a>
+        </div>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="data">
+            <tbody>
+              <% recentLeads.forEach(function (l) { var s = statusMeta(l.status); %>
+                <tr>
+                  <td>
+                    <a class="primary" href="/agent/leads/<%= l.id %>"><%= [l.first_name, l.last_name].filter(Boolean).join(' ') || l.email %></a>
+                    <div class="muted"><%= l.campaign_name %></div>
+                  </td>
+                  <td class="tight right">
+                    <span class="badge <%= s.tone %>"><%= s.label %></span>
+                    <div class="muted small"><%= tz.fmtRelative(l.created_at) %></div>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>My campaigns</h2></div>
+      <% if (!memberships.length) { %>
+        <div class="empty">
+          <%- include('../partials/art/empty-campaigns', { width: 130 }) %>
+          <h3>Not promoting anything yet</h3>
+          <p>Pick the campaigns you want to refer people to. Joining is instant.</p>
+          <a class="btn" href="/agent/campaigns">Browse campaigns</a>
+        </div>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Campaign</th><th>Rank</th><th></th></tr></thead>
+            <tbody>
+              <% memberships.forEach(function (m) { %>
+                <tr>
+                  <td class="primary"><%= m.campaign_name %></td>
+                  <td>
+                    <% if (m.profile_name) { %>
+                      <span class="badge navy"><%= m.profile_name %></span>
+                    <% } else { %>
+                      <span class="badge amber">Rank not set</span>
+                    <% } %>
+                  </td>
+                  <td class="right tight">
+                    <% if (m.link_slug) { %>
+                      <button class="btn secondary sm" data-copy="<%= appUrl %>/r/<%= m.link_slug %>">Copy link</button>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Earnings</h2>
+        <div class="actions"><a class="btn secondary sm" href="/agent/earnings">Details</a></div>
+      </div>
+      <div class="card-body">
+        <dl class="kv">
+          <dt>This month</dt><dd><strong><%= money(totals.this_month) %></strong></dd>
+          <dt>Pending approval</dt><dd><%= money(totals.pending) %></dd>
+          <dt>Approved</dt><dd><%= money(totals.approved) %></dd>
+          <dt>Paid</dt><dd><%= money(totals.paid) %></dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>

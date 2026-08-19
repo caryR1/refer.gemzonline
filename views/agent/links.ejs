@@ -1,0 +1,58 @@
+<div class="page-head">
+  <div>
+    <h1>My referral links</h1>
+    <p class="sub">One link per campaign. Everyone who signs up through it is attributed to you.</p>
+  </div>
+  <div class="actions"><a class="btn secondary" href="/agent/campaigns">Join another campaign</a></div>
+</div>
+
+<% if (!links.length) { %>
+  <div class="card">
+    <div class="empty">
+      <%- include('../partials/art/empty-campaigns', { width: 150 }) %>
+      <h3>No links yet</h3>
+      <p>Join a campaign and your referral link is generated immediately.</p>
+      <a class="btn" href="/agent/campaigns">Browse campaigns</a>
+    </div>
+  </div>
+<% } else { %>
+  <% links.forEach(function (l) { var url = appUrl + '/r/' + l.slug; %>
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2><%= l.campaign_name %></h2>
+          <p class="sub">
+            <% if (l.profile_name) { %><span class="badge navy"><%= l.profile_name %></span><% } %>
+            <%= l.lead_count %> lead<%= l.lead_count === 1 ? '' : 's' %> · <%= l.clicks %> click<%= l.clicks === 1 ? '' : 's' %>
+            <% if (l.last_click_at) { %> · last click <%= tz.fmtRelative(l.last_click_at) %><% } %>
+          </p>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="field mb-0">
+          <label for="link-<%= l.id %>">Your link</label>
+          <div class="copy-row">
+            <input type="text" id="link-<%= l.id %>" value="<%= url %>" readonly onclick="this.select()">
+            <button class="btn secondary" data-copy="<%= url %>">Copy</button>
+            <a class="btn secondary" href="<%= url %>" target="_blank" rel="noopener">Preview</a>
+          </div>
+          <div class="help">
+            Send it in a message, put it in a bio, print it on a card — anywhere works.
+          </div>
+        </div>
+      </div>
+    </div>
+  <% }); %>
+
+  <div class="card">
+    <div class="card-body">
+      <h3 style="font-size:15px">Getting the most from a referral</h3>
+      <p class="small muted mb-0">
+        A link on its own converts poorly. A sentence about why you thought of this
+        particular person converts well. Once they sign up, set how you know them on
+        the lead — the person making the call will open with it, and it changes how
+        the conversation starts.
+      </p>
+    </div>
+  </div>
+<% } %>

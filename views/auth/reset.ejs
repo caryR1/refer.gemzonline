@@ -1,0 +1,77 @@
+<h1 style="font-size:21px;text-align:center;margin-bottom:6px">Choose a new password</h1>
+<p class="center muted small" style="margin-bottom:22px">Then you will be signed in with it.</p>
+
+<div id="invalid" class="alert error" hidden>
+  <span>!</span>
+  <div>This reset link is invalid or has expired. <a href="/forgot-password">Request a new one</a>.</div>
+</div>
+
+<form id="reset-form" data-no-lock>
+  <div class="field">
+    <label for="password">New password</label>
+    <input type="password" id="password" name="password" autocomplete="new-password" required minlength="8">
+    <div class="help">At least 8 characters.</div>
+  </div>
+  <div class="field">
+    <label for="confirm">Confirm new password</label>
+    <input type="password" id="confirm" name="confirm" autocomplete="new-password" required minlength="8">
+  </div>
+  <div id="form-error" class="alert error" hidden><span>!</span><div></div></div>
+  <button type="submit" class="btn block">Update password</button>
+</form>
+
+<script>
+(function () {
+  var params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  var accessToken = params.get('access_token');
+  var form = document.getElementById('reset-form');
+  var errorBox = document.getElementById('form-error');
+
+  if (!accessToken) {
+    document.getElementById('invalid').hidden = false;
+    form.hidden = true;
+    return;
+  }
+
+  function showError(message) {
+    errorBox.querySelector('div').textContent = message;
+    errorBox.hidden = false;
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    errorBox.hidden = true;
+
+    var password = document.getElementById('password').value;
+    var confirm = document.getElementById('confirm').value;
+
+    if (password.length < 8) return showError('Choose a password of at least 8 characters.');
+    if (password !== confirm) return showError('The two passwords do not match.');
+
+    var button = form.querySelector('button');
+    button.disabled = true;
+    button.textContent = 'Updating…';
+
+    fetch('/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: accessToken, password: password })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) {
+          window.location.replace(data.redirect || '/login');
+        } else {
+          showError(data.error || 'That did not work. Try again.');
+          button.disabled = false;
+          button.textContent = 'Update password';
+        }
+      })
+      .catch(function () {
+        showError('Network problem. Try again.');
+        button.disabled = false;
+        button.textContent = 'Update password';
+      });
+  });
+})();
+</script>

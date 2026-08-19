@@ -1,0 +1,155 @@
+<div class="page-head">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="sub"><%= campaignCount %> active campaign<%= campaignCount === 1 ? '' : 's' %> · <%= agentCount %> agent<%= agentCount === 1 ? '' : 's' %> · times in <%= user.timezone.replace(/_/g, ' ') %></p>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/admin/campaigns/new">New campaign</a>
+    <a class="btn" href="/admin/leads">All leads</a>
+  </div>
+</div>
+
+<% if (configProblems.length) { %>
+  <div class="alert warn">
+    <span>!</span>
+    <div>
+      <strong>Configuration needs attention</strong>
+      <% configProblems.forEach(function (p) { %><div class="small"><%= p %></div><% }); %>
+      <div class="small mt-1"><a href="/admin/settings">Open settings</a></div>
+    </div>
+  </div>
+<% } %>
+
+<div class="stats">
+  <div class="stat">
+    <div class="label">Total leads</div>
+    <div class="value"><%= totalLeads %></div>
+    <div class="meta"><%= counts.new || 0 %> new · <%= counts.contacted || 0 %> contacted</div>
+  </div>
+  <div class="stat">
+    <div class="label">Appointments set</div>
+    <div class="value"><%= counts.appointment_set || 0 %></div>
+    <div class="meta"><%= awaitingClose.length %> past their time</div>
+  </div>
+  <div class="stat">
+    <div class="label">Closed / won</div>
+    <div class="value"><%= won %></div>
+    <div class="meta"><%= conversion %>% conversion</div>
+  </div>
+  <div class="stat">
+    <div class="label">Active recurring</div>
+    <div class="value"><%= activeAccounts %></div>
+    <div class="meta">Accruing every month</div>
+  </div>
+  <div class="stat accent">
+    <div class="label">Commission owed</div>
+    <div class="value"><%= money(totals.liability) %></div>
+    <div class="meta"><%= money(totals.pending) %> pending · <%= money(totals.paid) %> paid</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div>
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Awaiting close</h2>
+          <p class="sub">Appointments that have already happened but are still open.</p>
+        </div>
+      </div>
+      <% if (!awaitingClose.length) { %>
+        <div class="card-body"><p class="muted small mb-0">Nothing waiting. Good.</p></div>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="data">
+            <tbody>
+              <% awaitingClose.forEach(function (l) { %>
+                <tr>
+                  <td>
+                    <a class="primary" href="/admin/leads/<%= l.id %>"><%= [l.first_name, l.last_name].filter(Boolean).join(' ') || l.email %></a>
+                    <div class="muted"><%= l.campaign_name %> · <%= l.agent_name || 'unassigned' %></div>
+                  </td>
+                  <td class="right tight muted"><%= tz.fmtRelative(l.appointment_primary_at) %></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Recent leads</h2>
+        <div class="actions"><a class="btn secondary sm" href="/admin/leads">View all</a></div>
+      </div>
+      <% if (!recentLeads.length) { %>
+        <div class="empty">
+          <%- include('../partials/art/empty-leads', { width: 140 }) %>
+          <h3>No leads yet</h3>
+          <p>Create a campaign, add some agents, and the leads will follow.</p>
+          <a class="btn" href="/admin/campaigns/new">Create a campaign</a>
+        </div>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="data">
+            <tbody>
+              <% recentLeads.forEach(function (l) { var s = statusMeta(l.status); %>
+                <tr>
+                  <td>
+                    <a class="primary" href="/admin/leads/<%= l.id %>"><%= [l.first_name, l.last_name].filter(Boolean).join(' ') || l.email %></a>
+                    <div class="muted"><%= l.campaign_name %> · <%= l.agent_name || 'unattributed' %></div>
+                  </td>
+                  <td class="right tight">
+                    <span class="badge <%= s.tone %>"><%= s.label %></span>
+                    <div class="muted small"><%= tz.fmtRelative(l.created_at) %></div>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>Coming up</h2></div>
+      <% if (!upcoming.length) { %>
+        <div class="card-body"><p class="muted small mb-0">No appointments booked.</p></div>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="data">
+            <tbody>
+              <% upcoming.forEach(function (l) { %>
+                <tr>
+                  <td>
+                    <a class="primary" href="/admin/leads/<%= l.id %>"><%= [l.first_name, l.last_name].filter(Boolean).join(' ') || l.email %></a>
+                    <div class="muted"><%= l.campaign_name %> · <%= l.agent_name || 'unassigned' %></div>
+                  </td>
+                  <td class="right tight">
+                    <div><%= tz.fmtShort(l.appointment_primary_at, user.timezone) %></div>
+                    <div class="muted small">their time: <%= tz.fmt(l.appointment_primary_at, l.timezone, 'h:mm a') %></div>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Money</h2>
+        <div class="actions"><a class="btn secondary sm" href="/admin/commissions">Review</a></div>
+      </div>
+      <div class="card-body">
+        <dl class="kv">
+          <dt>Pending approval</dt><dd><strong><%= money(totals.pending) %></strong></dd>
+          <dt>Approved, unpaid</dt><dd><%= money(totals.approved) %></dd>
+          <dt>Paid to date</dt><dd><%= money(totals.paid) %></dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,13 @@
+<% layout('layouts/bare') -%>
+<div class="center">
+  <h1 style="font-size:20px;margin:0 0 8px">Something went wrong</h1>
+  <p class="muted">
+    The problem has been logged. Try again in a moment — if it keeps happening,
+    let us know what you were doing at the time.
+  </p>
+  <a class="btn secondary" href="/">Back to safety</a>
+</div>
+
+<% if (typeof message !== 'undefined' && message) { %>
+  <pre style="margin-top:22px;text-align:left;font-size:11.5px;line-height:1.5;background:var(--grey-050);border:1px solid var(--grey-200);border-radius:8px;padding:12px;overflow:auto;max-height:300px;color:var(--grey-700)"><%= message %></pre>
+<% } %>

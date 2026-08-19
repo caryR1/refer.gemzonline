@@ -1,0 +1,16 @@
+<h1 style="font-size:19px;margin-bottom:4px"><%= row.subject || '(no subject)' %></h1>
+<p class="muted small"><%= tz.fmtStaff(row.created_at) %></p>
+
+<dl class="kv mb-3">
+  <dt>Channel</dt><dd><%= row.channel %></dd>
+  <dt>To</dt><dd><%= row.to_address %></dd>
+  <dt>Recipient type</dt><dd><%= row.recipient || '—' %></dd>
+  <dt>Event</dt><dd><%= row.trigger_event || 'manual' %></dd>
+  <dt>Status</dt>
+  <dd><span class="badge <%= row.status === 'sent' ? 'green' : (row.status === 'failed' ? 'red' : 'slate') %>"><%= row.status %></span></dd>
+  <% if (row.provider_message_id) { %><dt>Provider id</dt><dd><code><%= row.provider_message_id %></code></dd><% } %>
+  <% if (row.error) { %><dt>Error</dt><dd style="color:var(--red-600)"><%= row.error %></dd><% } %>
+</dl>
+
+<h3 style="font-size:14px">Payload</h3>
+<pre style="font-size:12px;background:var(--grey-050);border:1px solid var(--grey-200);border-radius:8px;padding:12px;overflow:auto;max-height:400px"><%= row.body || '(empty)' %></pre>

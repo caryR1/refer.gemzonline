@@ -1,0 +1,182 @@
+<div class="page-head">
+  <div>
+    <h1><%= isNew ? 'New template' : template.name %></h1>
+    <p class="sub"><%= template.channel === 'whatsapp' ? 'WhatsApp' : 'Email' %> template</p>
+  </div>
+  <div class="actions">
+    <% if (!isNew) { %>
+      <a class="btn secondary" href="/admin/templates/<%= template.id %>/preview" target="_blank" rel="noopener">Preview</a>
+    <% } %>
+    <a class="btn secondary" href="/admin/templates">Back</a>
+  </div>
+</div>
+
+<form method="post" action="<%= isNew ? '/admin/templates' : '/admin/templates/' + template.id %>">
+  <div class="grid-2">
+    <div>
+      <div class="card">
+        <div class="card-head"><h2>Settings</h2></div>
+        <div class="card-body">
+          <div class="field-row">
+            <div class="field">
+              <label for="name">Template name</label>
+              <input type="text" id="name" name="name" required value="<%= template.name || '' %>"
+                     placeholder="Lead — welcome and acknowledge">
+            </div>
+            <div class="field">
+              <label for="channel">Channel</label>
+              <select id="channel" name="channel">
+                <option value="email" <%= template.channel === 'email' ? 'selected' : '' %>>Email</option>
+                <option value="whatsapp" <%= template.channel === 'whatsapp' ? 'selected' : '' %>>WhatsApp</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="trigger_event">Send when</label>
+              <select id="trigger_event" name="trigger_event">
+                <% triggerOptions.forEach(function (o) { %>
+                  <option value="<%= o.value %>" <%= (template.trigger_event || '') === o.value ? 'selected' : '' %>><%= o.label %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="field">
+              <label for="send_to">Goes to</label>
+              <select id="send_to" name="send_to">
+                <option value="lead" <%= template.send_to === 'lead' ? 'selected' : '' %>>The prospect</option>
+                <option value="agent" <%= template.send_to === 'agent' ? 'selected' : '' %>>The assigned agent</option>
+                <option value="admin" <%= template.send_to === 'admin' ? 'selected' : '' %>>Admins</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="campaign_id">Campaign</label>
+              <select id="campaign_id" name="campaign_id">
+                <option value="">All campaigns</option>
+                <% campaigns.forEach(function (c) { %>
+                  <option value="<%= c.id %>" <%= template.campaign_id === c.id ? 'selected' : '' %>><%= c.name %></option>
+                <% }); %>
+              </select>
+              <div class="help">A campaign-specific template beats a general one for the same event.</div>
+            </div>
+            <div class="field">
+              <label for="slug">Slug</label>
+              <input type="text" id="slug" name="slug" value="<%= template.slug || '' %>" placeholder="lead-welcome">
+              <div class="help">Used to send this template by name.</div>
+            </div>
+          </div>
+
+          <div class="check">
+            <input type="checkbox" id="active" name="active" value="1" <%= template.active !== false ? 'checked' : '' %>>
+            <div><label for="active">Active — send this when the trigger fires</label></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Content</h2></div>
+        <div class="card-body">
+          <div class="field">
+            <label for="subject">Subject line <span class="muted small">(email only)</span></label>
+            <input type="text" id="subject" name="subject" value="<%= template.subject || '' %>"
+                   placeholder="Thanks {{lead.first_name}} — one quick step to confirm">
+          </div>
+
+          <div class="field">
+            <label for="body_html">Body HTML <span class="muted small">(email only)</span></label>
+            <textarea id="body_html" name="body_html" style="min-height:320px;font-family:var(--mono);font-size:13px"
+                      data-counter="#body-count"><%= template.body_html || '' %></textarea>
+            <div class="help">
+              Your HTML goes inside a styled, mobile-friendly shell — no need for
+              <code>&lt;html&gt;</code> or inline styles. Handy classes:
+              <code>button</code>, <code>data</code> (tables), <code>muted</code>, <code>rule</code>.
+              <span id="body-count"></span>
+            </div>
+          </div>
+
+          <fieldset>
+            <legend>WhatsApp</legend>
+            <div class="alert info" style="margin-bottom:14px">
+              <span>i</span>
+              <div class="small">
+                WhatsApp does not allow free wording. Create and submit the template in
+                Meta's console, then reference its name here and map each
+                <code>{{1}}</code>, <code>{{2}}</code> slot to a variable below, in order.
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="wa_template_name">Approved template name</label>
+                <input type="text" id="wa_template_name" name="wa_template_name"
+                       value="<%= template.wa_template_name || '' %>" placeholder="appointment_reminder_v1">
+              </div>
+              <div class="field">
+                <label for="wa_language">Language code</label>
+                <input type="text" id="wa_language" name="wa_language" value="<%= template.wa_language || 'en_US' %>">
+              </div>
+            </div>
+            <div class="field mb-0">
+              <label for="wa_variables">Body variables, in order</label>
+              <textarea id="wa_variables" name="wa_variables" style="min-height:96px;font-family:var(--mono);font-size:13px"
+                        placeholder="lead.first_name&#10;campaign.name&#10;lead.appointment_confirmed"><%= ((template.wa_variable_map || {}).body || []).join('\n') %></textarea>
+              <div class="help">One per line. The first line fills <code>{{1}}</code>, the second <code>{{2}}</code>, and so on.</div>
+            </div>
+          </fieldset>
+        </div>
+        <div class="card-foot">
+          <button class="btn" type="submit"><%= isNew ? 'Create template' : 'Save template' %></button>
+          <% if (!isNew) { %>
+            <button class="btn subtle-danger" type="submit" formaction="/admin/templates/<%= template.id %>/delete"
+                    formnovalidate data-no-lock
+                    onclick="return confirm('Delete this template? Messages already sent are kept in the log.')">
+              Delete
+            </button>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-head"><h2>Variables</h2></div>
+        <div class="card-body">
+          <p class="small muted">Click to copy. Wrap in double braces in email bodies.</p>
+          <% variableReference.forEach(function (group) { %>
+            <h3 style="font-size:13px;margin:14px 0 6px"><%= group.group %></h3>
+            <div class="tag-list">
+              <% group.vars.forEach(function (v) { %>
+                <button type="button" class="badge slate" style="border:0;cursor:pointer;font-family:var(--mono);font-size:11.5px"
+                        data-copy="{{<%= v %>}}"><%= v %></button>
+              <% }); %>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+
+      <% if (!isNew) { %>
+        <div class="card">
+          <div class="card-head"><h2>Send a test</h2></div>
+          <div class="card-body">
+            <form method="post" action="/admin/templates/<%= template.id %>/send">
+              <div class="field">
+                <label for="to">Send to</label>
+                <input type="text" id="to" name="to" required
+                       value="<%= user.email %>"
+                       placeholder="<%= template.channel === 'whatsapp' ? '+18765550100' : 'you@example.com' %>">
+              </div>
+              <div class="field">
+                <label for="lead_reference">Use a real lead <span class="muted small">(optional)</span></label>
+                <input type="text" id="lead_reference" name="lead_reference" placeholder="GZ-4KQ7M2">
+                <div class="help">Leave blank and the variables resolve to sample data.</div>
+              </div>
+              <button class="btn secondary" type="submit">Send test</button>
+            </form>
+          </div>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</form>

@@ -1,0 +1,88 @@
+<div class="page-head">
+  <div>
+    <h1>Audit log</h1>
+    <p class="sub">Append-only. Commission ranks, payments, lead changes, and account events.</p>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/admin/audit.csv<%= util.withQuery(query, { page: null }) %>">Download CSV</a>
+  </div>
+</div>
+
+<div class="card">
+  <form class="filters" method="get" action="/admin/audit">
+    <div class="field grow">
+      <label for="action">Action contains</label>
+      <input type="search" id="action" name="action" placeholder="commission, member, lead…" value="<%= query.action || '' %>">
+    </div>
+    <div class="field">
+      <label for="entity">Entity</label>
+      <select id="entity" name="entity" data-autosubmit>
+        <option value="">All</option>
+        <% ['lead','commission','commission_profile','campaign_member','campaign','profile','notification_template','relation_option'].forEach(function (e) { %>
+          <option value="<%= e %>" <%= query.entity === e ? 'selected' : '' %>><%= e.replace(/_/g,' ') %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="actor">Who</label>
+      <select id="actor" name="actor" data-autosubmit>
+        <option value="">Anyone</option>
+        <% actors.forEach(function (a) { %>
+          <option value="<%= a.id %>" <%= query.actor === a.id ? 'selected' : '' %>><%= a.full_name || a.email %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="field"><button class="btn secondary" type="submit">Filter</button></div>
+  </form>
+
+  <% if (!entries.length) { %>
+    <div class="empty">
+      <%- include('../partials/art/empty-search', { width: 150 }) %>
+      <h3>Nothing recorded yet</h3>
+      <p>Consequential actions are written here as they happen.</p>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>When</th><th>Who</th><th>What happened</th><th>Changes</th></tr></thead>
+        <tbody>
+          <% entries.forEach(function (e) { %>
+            <tr>
+              <td class="tight muted"><%= tz.fmtShort(e.created_at, user.timezone) %></td>
+              <td>
+                <div class="primary"><%= e.actor_name || 'System' %></div>
+                <div class="muted small"><%= e.actor_type %></div>
+              </td>
+              <td>
+                <div><%= e.summary || actionLabel(e.action) %></div>
+                <div class="muted small"><code><%= e.action %></code></div>
+              </td>
+              <td>
+                <% if (e.after && Object.keys(e.after).length) { %>
+                  <details>
+                    <summary style="cursor:pointer;font-size:13px;color:var(--navy-600)">View</summary>
+                    <table style="font-size:12px;margin-top:6px;border-collapse:collapse">
+                      <% Object.keys(e.after).forEach(function (k) { %>
+                        <tr>
+                          <td style="padding:2px 8px 2px 0;color:var(--grey-600)"><%= k.replace(/_/g,' ') %></td>
+                          <td style="padding:2px 8px 2px 0;color:var(--red-600)">
+                            <%= e.before && e.before[k] !== undefined && e.before[k] !== null ? String(e.before[k]) : '—' %>
+                          </td>
+                          <td style="padding:2px 0;color:var(--green-600)">
+                            → <%= e.after[k] === null ? '—' : String(e.after[k]) %>
+                          </td>
+                        </tr>
+                      <% }); %>
+                    </table>
+                  </details>
+                <% } else { %><span class="muted small">—</span><% } %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <%- include('../partials/pager', { page: page, basePath: basePath, query: query }) %>
+</div>

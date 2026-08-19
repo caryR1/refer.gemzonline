@@ -1,0 +1,102 @@
+<div class="page-head">
+  <div>
+    <h1>Leads</h1>
+    <p class="sub"><%= page.total %> total</p>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/admin/leads.csv<%= util.withQuery(query, { page: null }) %>">Download CSV</a>
+  </div>
+</div>
+
+<div class="card">
+  <form class="filters" method="get" action="/admin/leads">
+    <div class="field grow">
+      <label for="q">Search</label>
+      <input type="search" id="q" name="q" placeholder="Name, email, company or reference" value="<%= query.q || '' %>">
+    </div>
+    <div class="field">
+      <label for="status">Status</label>
+      <select id="status" name="status" data-autosubmit>
+        <option value="">All statuses</option>
+        <% LEAD_STATUSES.forEach(function (s) { %>
+          <option value="<%= s.value %>" <%= query.status === s.value ? 'selected' : '' %>><%= s.label %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="campaign">Campaign</label>
+      <select id="campaign" name="campaign" data-autosubmit>
+        <option value="">All campaigns</option>
+        <% campaigns.forEach(function (c) { %>
+          <option value="<%= c.id %>" <%= query.campaign === c.id ? 'selected' : '' %>><%= c.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="agent">Agent</label>
+      <select id="agent" name="agent" data-autosubmit>
+        <option value="">All agents</option>
+        <% agents.forEach(function (a) { %>
+          <option value="<%= a.id %>" <%= query.agent === a.id ? 'selected' : '' %>><%= a.full_name || a.email %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="account">Account</label>
+      <select id="account" name="account" data-autosubmit>
+        <option value="">Any</option>
+        <option value="active" <%= query.account === 'active' ? 'selected' : '' %>>Recurring active</option>
+      </select>
+    </div>
+    <div class="field"><button class="btn secondary" type="submit">Filter</button></div>
+  </form>
+
+  <% if (!leads.length) { %>
+    <div class="empty">
+      <%- include('../partials/art/empty-search', { width: 150 }) %>
+      <h3>Nothing matches</h3>
+      <p>Try widening the filters.</p>
+      <a class="btn secondary" href="/admin/leads">Clear filters</a>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Name</th><th>Campaign</th><th>Agent</th><th>Relation</th>
+            <th>Status</th><th>Appointment</th><th class="right">Added</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% leads.forEach(function (l) { var s = statusMeta(l.status); %>
+            <tr>
+              <td>
+                <a class="primary" href="/admin/leads/<%= l.id %>"><%= [l.first_name, l.last_name].filter(Boolean).join(' ') || l.email %></a>
+                <div class="muted"><%= l.email %> · <%= l.reference %></div>
+              </td>
+              <td><%= l.campaign_name %></td>
+              <td class="muted"><%= l.agent_name || '—' %></td>
+              <td>
+                <% if (l.relation_code) { %>
+                  <span class="badge slate"><%= relationMap[l.relation_code] || l.relation_code %></span>
+                <% } else { %><span class="muted small">—</span><% } %>
+              </td>
+              <td>
+                <span class="badge <%= s.tone %>"><%= s.label %></span>
+                <% if (l.account_active) { %><div><span class="badge green" style="margin-top:3px">recurring</span></div><% } %>
+              </td>
+              <td class="tight">
+                <% if (l.appointment_primary_at) { %>
+                  <%= tz.fmtShort(l.appointment_primary_at, user.timezone) %>
+                <% } else { %><span class="muted small">—</span><% } %>
+              </td>
+              <td class="right tight muted"><%= tz.fmtRelative(l.created_at) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <%- include('../partials/pager', { page: page, basePath: basePath, query: query }) %>
+</div>

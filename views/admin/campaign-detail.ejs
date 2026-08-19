@@ -1,0 +1,237 @@
+<div class="page-head">
+  <div>
+    <h1><%= campaign.name %></h1>
+    <p class="sub">
+      <span class="badge <%= campaign.status === 'active' ? 'green' : 'slate' %>"><%= campaign.status %></span>
+      · <code><%= appUrl %>/r/<%= campaign.slug %></code>
+    </p>
+  </div>
+  <div class="actions">
+    <button class="btn secondary" data-copy="<%= appUrl %>/r/<%= campaign.slug %>">Copy public link</button>
+    <a class="btn secondary" href="/r/<%= campaign.slug %>" target="_blank" rel="noopener">Preview</a>
+    <a class="btn" href="/admin/campaigns/<%= campaign.id %>/edit">Edit campaign</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="label">Leads</div><div class="value"><%= stats.leads %></div></div>
+  <div class="stat"><div class="label">Closed / won</div><div class="value"><%= stats.won %></div>
+    <div class="meta"><%= stats.leads ? Math.round((stats.won / stats.leads) * 100) : 0 %>% conversion</div></div>
+  <div class="stat"><div class="label">Active recurring</div><div class="value"><%= stats.active_accounts %></div></div>
+  <div class="stat"><div class="label">Agents</div><div class="value"><%= members.length %></div></div>
+</div>
+
+<!-- ===================== RANKS ===================== -->
+<div class="card" id="ranks">
+  <div class="card-head">
+    <div>
+      <h2>Commission ranks</h2>
+      <p class="sub">Each rank sets its own terms. The deal value here is what percentages calculate from — there is no per-lead override.</p>
+    </div>
+  </div>
+
+  <% if (!profiles.length) { %>
+    <div class="card-body"><p class="muted mb-0">No ranks yet. Add one below — without a rank, nothing can be earned.</p></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Rank</th><th>Initial</th><th>Recurring</th>
+            <th class="num">Deal value</th><th class="num">Payout day</th>
+            <th class="num">Agents</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% profiles.forEach(function (p) { %>
+            <tr>
+              <td>
+                <span class="primary"><%= p.name %></span>
+                <% if (p.is_default) { %> <span class="badge navy">default</span><% } %>
+                <% if (p.status !== 'active') { %> <span class="badge slate">archived</span><% } %>
+                <% if (p.description) { %><div class="muted"><%= p.description %></div><% } %>
+              </td>
+              <td>
+                <%= util.rateLabel(p.initial_type, p.initial_value, p.currency) %>
+                <% if (p.initial_type === 'percentage') { %>
+                  <div class="muted small">= <%= money((p.deal_value * p.initial_value) / 100, p.currency) %></div>
+                <% } %>
+              </td>
+              <td>
+                <% if (p.recurring_enabled) { %>
+                  <%= util.rateLabel(p.recurring_type, p.recurring_value, p.currency) %>/mo
+                  <div class="muted small"><%= p.recurring_months ? p.recurring_months + ' months max' : 'while active' %></div>
+                <% } else { %><span class="muted small">—</span><% } %>
+              </td>
+              <td class="num"><%= money(p.deal_value, p.currency) %></td>
+              <td class="num"><%= p.payout_day %></td>
+              <td class="num"><%= p.member_count %></td>
+              <td class="right tight muted small">
+                <%= p.currency %>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="7" style="padding:0;border:0">
+                <details>
+                  <summary style="padding:8px 14px;cursor:pointer;color:var(--navy-600);font-size:13px;font-weight:600">
+                    Edit “<%= p.name %>”
+                  </summary>
+                  <div style="padding:0 14px 18px">
+                    <form method="post" action="/admin/profiles/<%= p.id %>">
+                      <%- include('../partials/rank-fields', { p: p, campaign: campaign }) %>
+                      <div class="btn-row">
+                        <button class="btn sm" type="submit">Save rank</button>
+                        <button class="btn subtle-danger sm" type="submit" formaction="/admin/profiles/<%= p.id %>/delete"
+                                formnovalidate data-no-lock
+                                onclick="return confirm('Archive the “<%= p.name %>” rank? Existing commissions are untouched.')">
+                          Archive
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </details>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <div class="card-body" style="border-top:1px solid var(--grey-200)">
+    <details>
+      <summary style="cursor:pointer;font-weight:650;color:var(--navy-700)">Add a rank</summary>
+      <div class="mt-2">
+        <form method="post" action="/admin/campaigns/<%= campaign.id %>/profiles">
+          <%- include('../partials/rank-fields', { p: { currency: campaign.currency, payout_day: 15, initial_type: 'percentage', initial_value: 10, recurring_type: 'percentage', recurring_value: 0, deal_value: 0, status: 'active' }, campaign: campaign }) %>
+          <button class="btn" type="submit">Add rank</button>
+        </form>
+      </div>
+    </details>
+  </div>
+</div>
+
+<!-- ===================== REMINDERS ===================== -->
+<div class="card" id="reminders">
+  <div class="card-head">
+    <div>
+      <h2>Appointment reminders</h2>
+      <p class="sub">Three independent slots, all off by default. They follow the confirmed appointment — primary unless you say otherwise.</p>
+    </div>
+  </div>
+
+  <form method="post" action="/admin/campaigns/<%= campaign.id %>/reminders">
+    <div class="card-body">
+      <% [1,2,3].forEach(function (slot) {
+           var r = reminders.find(function (x) { return x.slot === slot; }) || { slot: slot, offset_value: 1, offset_unit: 'days', to_prospect: true }; %>
+        <fieldset>
+          <legend>Reminder <%= slot %></legend>
+
+          <div class="check">
+            <input type="checkbox" id="slot<%= slot %>_active" name="slot<%= slot %>_active" value="1" <%= r.active ? 'checked' : '' %>>
+            <div><label for="slot<%= slot %>_active">This reminder is switched on</label></div>
+          </div>
+
+          <div class="field-row three">
+            <div class="field">
+              <label for="slot<%= slot %>_offset_value">Send this far ahead</label>
+              <input type="number" min="1" max="90" id="slot<%= slot %>_offset_value"
+                     name="slot<%= slot %>_offset_value" value="<%= r.offset_value %>">
+            </div>
+            <div class="field">
+              <label for="slot<%= slot %>_offset_unit">Unit</label>
+              <select id="slot<%= slot %>_offset_unit" name="slot<%= slot %>_offset_unit">
+                <option value="hours" <%= r.offset_unit === 'hours' ? 'selected' : '' %>>hours before</option>
+                <option value="days" <%= r.offset_unit === 'days' ? 'selected' : '' %>>days before</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Channels</label>
+              <div class="check" style="margin-bottom:4px">
+                <input type="checkbox" id="slot<%= slot %>_channel_email" name="slot<%= slot %>_channel_email" value="1" <%= r.channel_email ? 'checked' : '' %>>
+                <div><label for="slot<%= slot %>_channel_email">Email</label></div>
+              </div>
+              <div class="check" style="margin:0">
+                <input type="checkbox" id="slot<%= slot %>_channel_whatsapp" name="slot<%= slot %>_channel_whatsapp" value="1" <%= r.channel_whatsapp ? 'checked' : '' %>>
+                <div><label for="slot<%= slot %>_channel_whatsapp">WhatsApp<%= whatsappLive ? '' : ' (not live yet)' %></label></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="field mb-0">
+            <label>Send to</label>
+            <div class="flex wrap">
+              <div class="check" style="margin:0">
+                <input type="checkbox" id="slot<%= slot %>_to_prospect" name="slot<%= slot %>_to_prospect" value="1" <%= r.to_prospect ? 'checked' : '' %>>
+                <div><label for="slot<%= slot %>_to_prospect">Prospect</label></div>
+              </div>
+              <div class="check" style="margin:0">
+                <input type="checkbox" id="slot<%= slot %>_to_agent" name="slot<%= slot %>_to_agent" value="1" <%= r.to_agent ? 'checked' : '' %>>
+                <div><label for="slot<%= slot %>_to_agent">Assigned agent</label></div>
+              </div>
+              <div class="check" style="margin:0">
+                <input type="checkbox" id="slot<%= slot %>_to_admin" name="slot<%= slot %>_to_admin" value="1" <%= r.to_admin ? 'checked' : '' %>>
+                <div><label for="slot<%= slot %>_to_admin">Admins</label></div>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+      <% }); %>
+    </div>
+    <div class="card-foot">
+      <button class="btn" type="submit">Save reminders</button>
+      <span class="small muted">
+        Reminders need a template with the trigger “Appointment reminder” on the matching channel.
+      </span>
+    </div>
+  </form>
+</div>
+
+<!-- ===================== AGENTS ===================== -->
+<div class="card" id="agents">
+  <div class="card-head">
+    <div><h2>Agents on this campaign</h2></div>
+  </div>
+  <% if (!members.length) { %>
+    <div class="card-body"><p class="muted mb-0 small">Nobody has joined yet. Agents can join themselves from their portal, or you can add them from an agent's page.</p></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Agent</th><th>Rank</th><th class="num">Leads</th><th>Link</th><th></th></tr></thead>
+        <tbody>
+          <% members.forEach(function (m) { %>
+            <tr>
+              <td>
+                <a class="primary" href="/admin/agents/<%= m.agent_id %>"><%= m.full_name || m.email %></a>
+                <div class="muted"><%= m.email %></div>
+              </td>
+              <td>
+                <form method="post" action="/admin/members/<%= m.id %>/profile" class="flex">
+                  <select name="commission_profile_id" style="min-width:150px">
+                    <option value="">No rank</option>
+                    <% profiles.forEach(function (p) { %>
+                      <option value="<%= p.id %>" <%= m.commission_profile_id === p.id ? 'selected' : '' %>><%= p.name %></option>
+                    <% }); %>
+                  </select>
+                  <button class="btn secondary sm" type="submit">Set</button>
+                </form>
+              </td>
+              <td class="num"><%= m.lead_count %></td>
+              <td class="tight">
+                <% if (m.link_slug) { %>
+                  <button class="btn secondary sm" data-copy="<%= appUrl %>/r/<%= m.link_slug %>">Copy</button>
+                <% } else { %><span class="muted small">—</span><% } %>
+              </td>
+              <td class="right">
+                <form method="post" action="/admin/members/<%= m.id %>/remove"
+                      data-confirm="Remove <%= m.full_name || m.email %> from this campaign? Their link stops working.">
+                  <button class="btn subtle-danger sm" type="submit">Remove</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

@@ -1,0 +1,114 @@
+<% if (cancelled) { %>
+
+  <div class="card">
+    <div class="card-body center">
+      <%- include('../partials/art/cancelled', { width: 200 }) %>
+      <h1 style="font-size:21px;margin-bottom:8px">Your appointment is cancelled</h1>
+      <p class="muted" style="max-width:420px;margin:0 auto 6px">
+        We have taken you off the schedule and stopped any further reminders.
+        Nothing more is needed from you.
+      </p>
+      <p class="small muted">
+        Changed your mind? Reply to any email from us and we will get you booked back in.
+      </p>
+    </div>
+  </div>
+
+<% } else { %>
+
+  <% if (saved) { %>
+    <div class="alert success"><span>✓</span><div>Your appointment has been updated. A confirmation is on the way.</div></div>
+  <% } %>
+
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Your appointment</h2>
+        <p class="sub"><%= campaign.name %> · reference <%= lead.reference %></p>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <% if (errors && errors.length) { %>
+        <div class="alert error">
+          <span>!</span>
+          <div><% errors.forEach(function (e) { %><div><%= e %></div><% }); %></div>
+        </div>
+      <% } %>
+
+      <% if (lead.appointment_primary_at) { %>
+        <dl class="kv mb-3">
+          <dt>Currently booked</dt>
+          <dd><strong><%= tz.fmt(lead.appointment_primary_at, lead.timezone) %></strong></dd>
+          <% if (lead.appointment_backup_at) { %>
+            <dt>Backup</dt><dd><%= tz.fmt(lead.appointment_backup_at, lead.timezone) %></dd>
+          <% } %>
+        </dl>
+      <% } %>
+
+      <form method="post" action="/appointment/<%= lead.access_token %>">
+        <div class="field">
+          <label for="timezone">Your timezone</label>
+          <select id="timezone" name="timezone">
+            <% timezones.forEach(function (zone) { %>
+              <option value="<%= zone %>" <%= lead.timezone === zone ? 'selected' : '' %>><%= zone.replace(/_/g, ' ') %></option>
+            <% }); %>
+          </select>
+        </div>
+
+        <div class="slot-card">
+          <h3>Preferred time</h3>
+          <div class="field-row">
+            <div class="field mb-0">
+              <label for="primary_date">Date</label>
+              <input type="date" id="primary_date" name="primary_date" required min="<%= minDate %>"
+                     value="<%= lead.appointment_primary_at ? tz.isoDate(lead.appointment_primary_at, lead.timezone) : '' %>">
+            </div>
+            <div class="field mb-0">
+              <label for="primary_time">Time</label>
+              <input type="time" id="primary_time" name="primary_time" required
+                     value="<%= lead.appointment_primary_at ? tz.fmt(lead.appointment_primary_at, lead.timezone, 'HH:mm') : '' %>">
+            </div>
+          </div>
+          <div class="tz-note" data-zone-echo></div>
+        </div>
+
+        <div class="slot-card backup">
+          <h3>Backup time</h3>
+          <div class="field-row">
+            <div class="field mb-0">
+              <label for="backup_date">Date</label>
+              <input type="date" id="backup_date" name="backup_date" min="<%= minDate %>"
+                     value="<%= lead.appointment_backup_at ? tz.isoDate(lead.appointment_backup_at, lead.timezone) : '' %>">
+            </div>
+            <div class="field mb-0">
+              <label for="backup_time">Time</label>
+              <input type="time" id="backup_time" name="backup_time"
+                     value="<%= lead.appointment_backup_at ? tz.fmt(lead.appointment_backup_at, lead.timezone, 'HH:mm') : '' %>">
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn block" data-busy="Saving…">Save my new time</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h3 style="font-size:15px">Cannot make it at all?</h3>
+      <p class="small muted">
+        Cancelling closes your enquiry and stops all further messages from us.
+      </p>
+      <form method="post" action="/appointment/<%= lead.access_token %>/cancel"
+            data-confirm="Cancel your appointment? This closes your enquiry and stops all further messages.">
+        <div class="field">
+          <label for="reason">Anything you would like us to know? <span class="muted small">(optional)</span></label>
+          <input type="text" id="reason" name="reason" placeholder="Timing is wrong, no longer needed…">
+        </div>
+        <button type="submit" class="btn subtle-danger" data-busy="Cancelling…">Cancel my appointment</button>
+      </form>
+    </div>
+  </div>
+
+<% } %>

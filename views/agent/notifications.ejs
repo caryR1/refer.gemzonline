@@ -1,0 +1,70 @@
+<div class="page-head">
+  <div>
+    <h1>Notifications</h1>
+    <p class="sub">Choose what reaches you, and how.</p>
+  </div>
+</div>
+
+<% if (!whatsappLive) { %>
+  <div class="alert info">
+    <span>i</span>
+    <div>
+      WhatsApp is not switched on for this site yet. You can set your preference now —
+      it takes effect as soon as it goes live.
+    </div>
+  </div>
+<% } %>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <h2>What you receive</h2>
+      <p class="sub">A greyed-out switch has been turned off by an administrator and cannot be turned back on.</p>
+    </div>
+  </div>
+
+  <form method="post" action="/agent/notifications">
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th>Event</th><th style="width:120px">Email</th><th style="width:140px">WhatsApp</th></tr>
+        </thead>
+        <tbody>
+          <% prefs.forEach(function (row) { %>
+            <tr>
+              <td>
+                <div class="primary"><%= row.event.label %></div>
+                <div class="muted"><%= row.event.description %></div>
+              </td>
+              <% ['email', 'whatsapp'].forEach(function (channel) { var p = row[channel]; %>
+                <td>
+                  <div class="check" style="margin:0">
+                    <input type="checkbox"
+                           id="<%= row.event.key %>__<%= channel %>"
+                           name="<%= row.event.key %>__<%= channel %>"
+                           value="1"
+                           <%= p.effective ? 'checked' : '' %>
+                           <%= p.blocked ? 'disabled' : '' %>>
+                    <div>
+                      <label for="<%= row.event.key %>__<%= channel %>" class="visually-hidden">
+                        <%= row.event.label %> by <%= channel %>
+                      </label>
+                      <% if (p.blocked) { %>
+                        <span class="blocked-note">Off by admin</span>
+                      <% } %>
+                    </div>
+                  </div>
+                </td>
+              <% }); %>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card-foot">
+      <button class="btn" type="submit">Save preferences</button>
+      <span class="small muted">Appointment reminders are configured per campaign by an administrator.</span>
+    </div>
+  </form>
+</div>

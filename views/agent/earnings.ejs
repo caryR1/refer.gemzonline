@@ -1,0 +1,94 @@
+<div class="page-head">
+  <div>
+    <h1>Earnings</h1>
+    <p class="sub">Commission is recorded when a lead is closed as won, then approved and paid by an admin.</p>
+  </div>
+  <div class="actions"><a class="btn secondary" href="/agent/earnings.csv">Download CSV</a></div>
+</div>
+
+<div class="stats">
+  <div class="stat accent">
+    <div class="label">Total earned</div>
+    <div class="value"><%= money(totals.total) %></div>
+    <div class="meta"><%= totals.entries %> entries</div>
+  </div>
+  <div class="stat">
+    <div class="label">This month</div>
+    <div class="value"><%= money(totals.this_month) %></div>
+  </div>
+  <div class="stat">
+    <div class="label">Pending</div>
+    <div class="value"><%= money(totals.pending) %></div>
+    <div class="meta">Awaiting approval</div>
+  </div>
+  <div class="stat">
+    <div class="label">Paid</div>
+    <div class="value"><%= money(totals.paid) %></div>
+  </div>
+</div>
+
+<% if (byPeriod.length) { %>
+  <div class="card">
+    <div class="card-head"><h2>By month</h2></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Month</th><th class="num">Entries</th><th class="num">Earned</th><th class="num">Paid</th></tr></thead>
+        <tbody>
+          <% byPeriod.forEach(function (p) { %>
+            <tr>
+              <td class="primary"><%= tz.periodLabel(p.period) %></td>
+              <td class="num"><%= p.entries %></td>
+              <td class="num"><%= money(p.total || 0) %></td>
+              <td class="num muted"><%= money(p.paid || 0) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<div class="card">
+  <div class="card-head"><h2>Every entry</h2></div>
+  <% if (!rows.length) { %>
+    <div class="empty">
+      <%- include('../partials/art/empty-leads', { width: 140 }) %>
+      <h3>Nothing earned yet</h3>
+      <p>Commission appears here the moment one of your leads is closed as won.</p>
+      <a class="btn" href="/agent/links">Share my link</a>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Period</th><th>Lead</th><th>Campaign</th><th>Type</th>
+            <th class="num">Amount</th><th>Status</th><th>Payout</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rows.forEach(function (c) { %>
+            <tr>
+              <td class="tight"><%= tz.periodLabel(c.period) %></td>
+              <td>
+                <% if (c.lead_id) { %>
+                  <a href="/agent/leads/<%= c.lead_id %>"><%= [c.first_name, c.last_name].filter(Boolean).join(' ') || c.reference %></a>
+                <% } else { %><span class="muted">—</span><% } %>
+              </td>
+              <td class="muted"><%= c.campaign_name %></td>
+              <td>
+                <span class="badge <%= c.kind === 'recurring' ? 'violet' : 'navy' %>"><%= c.kind %></span>
+                <% if (c.rate_label) { %><div class="muted small"><%= c.rate_label %></div><% } %>
+              </td>
+              <td class="num"><strong><%= money(c.amount, c.currency) %></strong></td>
+              <td>
+                <span class="badge <%= c.status === 'paid' ? 'green' : (c.status === 'approved' ? 'blue' : (c.status === 'void' ? 'red' : 'amber')) %>"><%= c.status %></span>
+              </td>
+              <td class="tight muted"><%= c.payout_date ? tz.fmtDate(c.payout_date) : '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

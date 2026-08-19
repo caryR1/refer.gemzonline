@@ -1,0 +1,70 @@
+<%# Two figures, a gem passing between them. Warm, rounded, dimensional. %>
+<% var w = typeof width !== 'undefined' ? width : 300; %>
+<svg class="art" width="<%= w %>" viewBox="0 0 320 220" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One person passing a gem to another">
+  <defs>
+    <linearGradient id="hdSky" x1="160" y1="8" x2="160" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e7ecf6"/><stop offset="1" stop-color="#f7f9fc"/>
+    </linearGradient>
+    <linearGradient id="hdBodyA" x1="62" y1="104" x2="104" y2="196" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#24427f"/><stop offset="1" stop-color="#12244a"/>
+    </linearGradient>
+    <linearGradient id="hdBodyB" x1="212" y1="104" x2="256" y2="196" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35a99b"/><stop offset="1" stop-color="#1c7a70"/>
+    </linearGradient>
+    <linearGradient id="hdSkinA" x1="72" y1="60" x2="102" y2="98" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c98c63"/><stop offset="1" stop-color="#a76c47"/>
+    </linearGradient>
+    <linearGradient id="hdSkinB" x1="218" y1="58" x2="248" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e8b489"/><stop offset="1" stop-color="#c98c63"/>
+    </linearGradient>
+    <linearGradient id="hdGem" x1="146" y1="72" x2="176" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f2b544"/><stop offset="1" stop-color="#f0785a"/>
+    </linearGradient>
+    <radialGradient id="hdGlow" cx="0" cy="0" r="1" gradientTransform="translate(160 90) scale(58)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f2b544" stop-opacity=".42"/><stop offset="1" stop-color="#f2b544" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <ellipse cx="160" cy="110" rx="150" ry="102" fill="url(#hdSky)"/>
+  <ellipse cx="160" cy="196" rx="126" ry="13" fill="#12244a" fill-opacity=".07"/>
+
+  <!-- connecting arc -->
+  <path d="M104 92c22-30 90-30 112 0" stroke="#9aa4b5" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="7 9" opacity=".65"/>
+  <circle cx="160" cy="90" r="52" fill="url(#hdGlow)"/>
+
+  <!-- left figure -->
+  <g>
+    <path d="M60 196c0-30 14-52 27-52h20c13 0 27 22 27 52H60Z" fill="url(#hdBodyA)"/>
+    <path d="M74 196c0-24 8-42 16-46l-3-6c-14 4-27 24-27 52h14Z" fill="#ffffff" fill-opacity=".1"/>
+    <rect x="76" y="58" width="34" height="42" rx="16" fill="url(#hdSkinA)"/>
+    <path d="M75 72c-1-14 8-22 18-22s19 8 18 22c-3-6-9-9-18-9s-15 3-18 9Z" fill="#2c2118"/>
+    <circle cx="86" cy="80" r="2.4" fill="#2c2118"/><circle cx="100" cy="80" r="2.4" fill="#2c2118"/>
+    <path d="M89 88c2 2.6 6 2.6 8 0" stroke="#2c2118" stroke-width="2" stroke-linecap="round"/>
+    <path d="M110 146c8-6 18-20 22-34" stroke="url(#hdSkinA)" stroke-width="13" stroke-linecap="round"/>
+  </g>
+
+  <!-- right figure -->
+  <g>
+    <path d="M206 196c0-30 14-52 27-52h20c13 0 27 22 27 52h-74Z" fill="url(#hdBodyB)"/>
+    <path d="M220 196c0-24 8-42 16-46l-3-6c-14 4-27 24-27 52h14Z" fill="#ffffff" fill-opacity=".14"/>
+    <rect x="222" y="56" width="34" height="42" rx="16" fill="url(#hdSkinB)"/>
+    <path d="M220 74c-2-16 9-24 19-24s21 8 19 24c-2-3-4-8-9-9-6 6-20 5-25 1-2 2-3 5-4 8Z" fill="#4a3220"/>
+    <circle cx="232" cy="78" r="2.4" fill="#33271c"/><circle cx="246" cy="78" r="2.4" fill="#33271c"/>
+    <path d="M235 86c2 2.6 6 2.6 8 0" stroke="#33271c" stroke-width="2" stroke-linecap="round"/>
+    <path d="M212 146c-8-6-18-20-22-34" stroke="url(#hdSkinB)" stroke-width="13" stroke-linecap="round"/>
+  </g>
+
+  <!-- the gem in transit -->
+  <g transform="translate(160 88)">
+    <path d="M0-19 17-8 0 3l-17-11L0-19Z" fill="url(#hdGem)"/>
+    <path d="M0 3v20l-17-11V-8L0 3Z" fill="#d8613f"/>
+    <path d="M0 3v20l17-11V-8L0 3Z" fill="#f2b544"/>
+    <path d="M0-19 17-8 0 3l-17-11L0-19Z" fill="#ffffff" fill-opacity=".26"/>
+  </g>
+
+  <!-- sparkles -->
+  <path d="M196 46l2.4 5.6 5.6 2.4-5.6 2.4-2.4 5.6-2.4-5.6-5.6-2.4 5.6-2.4L196 46Z" fill="#f2b544" opacity=".85"/>
+  <path d="M118 40l1.8 4.2 4.2 1.8-4.2 1.8-1.8 4.2-1.8-4.2-4.2-1.8 4.2-1.8L118 40Z" fill="#35a99b" opacity=".7"/>
+  <circle cx="252" cy="118" r="3.4" fill="#f0785a" opacity=".55"/>
+  <circle cx="64" cy="126" r="2.8" fill="#24427f" opacity=".35"/>
+</svg>

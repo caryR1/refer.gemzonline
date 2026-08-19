@@ -1,0 +1,53 @@
+<% if (user) { %>
+<%
+  function nav(href, label, exact) {
+    var active = exact ? currentPath === href : (currentPath === href || currentPath.indexOf(href + '/') === 0);
+    return { href: href, label: label, active: active };
+  }
+  var items = user.role === 'admin'
+    ? [
+        { label: 'Overview', links: [
+          nav('/admin', 'Dashboard', true),
+          nav('/admin/leads', 'Leads'),
+          nav('/admin/commissions', 'Commissions'),
+          nav('/admin/reports', 'Reports'),
+        ]},
+        { label: 'Setup', links: [
+          nav('/admin/campaigns', 'Campaigns'),
+          nav('/admin/agents', 'Agents'),
+          nav('/admin/templates', 'Message templates'),
+        ]},
+        { label: 'System', links: [
+          nav('/admin/notifications', 'Notification log'),
+          nav('/admin/audit', 'Audit log'),
+          nav('/admin/settings', 'Settings'),
+          nav('/admin/profile', 'My profile'),
+        ]},
+      ]
+    : [
+        { label: 'Selling', links: [
+          nav('/agent', 'Dashboard', true),
+          nav('/agent/campaigns', 'Campaigns'),
+          nav('/agent/links', 'My links'),
+          nav('/agent/leads', 'My leads'),
+        ]},
+        { label: 'Money', links: [
+          nav('/agent/earnings', 'Earnings'),
+        ]},
+        { label: 'Account', links: [
+          nav('/agent/profile', 'My profile'),
+          nav('/agent/notifications', 'Notifications'),
+        ]},
+      ];
+%>
+<nav class="sidebar" aria-label="Main">
+  <% items.forEach(function (group) { %>
+    <div class="group">
+      <div class="group-label"><%= group.label %></div>
+      <% group.links.forEach(function (link) { %>
+        <a href="<%= link.href %>" class="<%= link.active ? 'active' : '' %>"><%= link.label %></a>
+      <% }); %>
+    </div>
+  <% }); %>
+</nav>
+<% } %>

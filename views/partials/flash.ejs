@@ -1,0 +1,17 @@
+<% if (typeof flash !== 'undefined' && flash) { %>
+  <% (flash.success || []).forEach(function (m) { %>
+    <div class="alert success"><span>✓</span><div><%= m %></div></div>
+  <% }); %>
+  <% (flash.error || []).forEach(function (m) { %>
+    <div class="alert error"><span>!</span><div><%= m %></div></div>
+  <% }); %>
+  <% (flash.info || []).forEach(function (m) { %>
+    <div class="alert info"><span>i</span><div><%= m %></div></div>
+  <% }); %>
+<% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <div class="alert error"><span>!</span><div><%= error %></div></div>
+<% } %>
+<% if (typeof notice !== 'undefined' && notice) { %>
+  <div class="alert info"><span>i</span><div><%= notice %></div></div>
+<% } %>

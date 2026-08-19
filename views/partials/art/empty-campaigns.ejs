@@ -1,0 +1,20 @@
+<% var w = typeof width !== 'undefined' ? width : 160; %>
+<svg width="<%= w %>" viewBox="0 0 180 150" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="No campaigns joined">
+  <defs>
+    <linearGradient id="ecFlagA" x1="70" y1="22" x2="140" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#24427f"/><stop offset="1" stop-color="#12244a"/>
+    </linearGradient>
+    <linearGradient id="ecFlagB" x1="40" y1="66" x2="76" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35a99b"/><stop offset="1" stop-color="#1c7a70"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="90" cy="130" rx="50" ry="8" fill="#12244a" fill-opacity=".07"/>
+  <rect x="84" y="20" width="6" height="106" rx="3" fill="#9aa4b5"/>
+  <path d="M90 24h48l-11 14 11 14H90V24Z" fill="url(#ecFlagA)"/>
+  <path d="M84 62H42l10 13-10 13h42V62Z" fill="url(#ecFlagB)"/>
+  <rect x="72" y="122" width="30" height="8" rx="4" fill="#c6cdd9"/>
+  <circle cx="112" cy="38" r="3.4" fill="#ffffff" fill-opacity=".55"/>
+  <circle cx="60" cy="75" r="3" fill="#ffffff" fill-opacity=".6"/>
+  <path d="M148 84l2.2 5 5 2.2-5 2.2-2.2 5-2.2-5-5-2.2 5-2.2L148 84Z" fill="#f2b544" opacity=".85"/>
+  <circle cx="34" cy="36" r="3" fill="#f0785a" opacity=".55"/>
+</svg>

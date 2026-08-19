@@ -1,0 +1,63 @@
+<div class="page-head">
+  <div>
+    <h1>Message templates</h1>
+    <p class="sub">Email wording is yours to edit. WhatsApp references a template Meta has already approved.</p>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/admin/templates/new?channel=whatsapp">New WhatsApp template</a>
+    <a class="btn" href="/admin/templates/new">New email template</a>
+  </div>
+</div>
+
+<% if (!whatsappLive) { %>
+  <div class="alert info">
+    <span>i</span>
+    <div>
+      WhatsApp is not configured yet, so WhatsApp templates are saved but never sent.
+      Add your provider credentials in <code>.env</code> to switch the channel on.
+    </div>
+  </div>
+<% } %>
+
+<div class="card">
+  <% if (!templates.length) { %>
+    <div class="empty">
+      <%- include('../partials/art/empty-leads', { width: 150 }) %>
+      <h3>No templates yet</h3>
+      <p>Without a template, an event fires and nothing is sent. Start with a welcome email.</p>
+      <a class="btn" href="/admin/templates/new">New email template</a>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th>Template</th><th>Channel</th><th>Trigger</th><th>Goes to</th><th>Campaign</th><th></th></tr>
+        </thead>
+        <tbody>
+          <% templates.forEach(function (t) { %>
+            <tr>
+              <td>
+                <a class="primary" href="/admin/templates/<%= t.id %>"><%= t.name %></a>
+                <div class="muted">
+                  <% if (t.channel === 'email') { %><%= t.subject || 'no subject' %>
+                  <% } else { %><%= t.wa_template_name || 'no Meta template name set' %><% } %>
+                </div>
+              </td>
+              <td><span class="badge <%= t.channel === 'whatsapp' ? 'green' : 'blue' %>"><%= t.channel %></span></td>
+              <td>
+                <% if (t.trigger_event) { %><%= eventLabel(t.trigger_event) %>
+                <% } else { %><span class="muted small">manual only</span><% } %>
+              </td>
+              <td class="muted"><%= t.send_to %></td>
+              <td class="muted"><%= t.campaign_name || 'all campaigns' %></td>
+              <td class="right tight">
+                <% if (!t.active) { %><span class="badge slate">inactive</span><% } %>
+                <a class="btn secondary sm" href="/admin/templates/<%= t.id %>/preview" target="_blank" rel="noopener">Preview</a>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

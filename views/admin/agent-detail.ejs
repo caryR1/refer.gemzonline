@@ -1,0 +1,191 @@
+<div class="page-head">
+  <div>
+    <h1><%= agent.full_name || agent.email %></h1>
+    <p class="sub">
+      <span class="badge <%= agent.role === 'admin' ? 'navy' : 'slate' %>"><%= agent.role %></span>
+      <% if (agent.status !== 'active') { %><span class="badge red">suspended</span><% } %>
+      · <%= agent.email %>
+      <% if (agent.auth_provider === 'google') { %> · signs in with Google<% } %>
+    </p>
+  </div>
+  <div class="actions"><a class="btn secondary" href="/admin/agents">Back to agents</a></div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="label">Leads</div>
+    <div class="value"><%= (counts.new||0)+(counts.contacted||0)+(counts.appointment_set||0)+(counts.closed_won||0)+(counts.closed_lost||0) %></div></div>
+  <div class="stat"><div class="label">Closed / won</div><div class="value"><%= counts.closed_won || 0 %></div></div>
+  <div class="stat"><div class="label">Campaigns</div><div class="value"><%= memberships.length %></div></div>
+  <div class="stat accent"><div class="label">Earned</div><div class="value"><%= money(totals.total) %></div>
+    <div class="meta"><%= money(totals.pending) %> pending</div></div>
+</div>
+
+<div class="grid-2">
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>Campaign memberships</h2></div>
+      <% if (!memberships.length) { %>
+        <div class="card-body"><p class="muted small mb-0">Not on any campaign yet.</p></div>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Campaign</th><th>Rank</th><th class="num">Leads</th><th></th></tr></thead>
+            <tbody>
+              <% memberships.forEach(function (m) { %>
+                <tr>
+                  <td>
+                    <a class="primary" href="/admin/campaigns/<%= m.campaign_id %>"><%= m.campaign_name %></a>
+                    <% if (m.link_slug) { %><div class="muted small"><code>/r/<%= m.link_slug %></code></div><% } %>
+                  </td>
+                  <td>
+                    <% if (m.profile_name) { %><span class="badge navy"><%= m.profile_name %></span>
+                    <% } else { %><span class="badge amber">No rank</span><% } %>
+                  </td>
+                  <td class="num"><%= m.lead_count %></td>
+                  <td class="right">
+                    <form method="post" action="/admin/members/<%= m.id %>/remove"
+                          data-confirm="Remove them from <%= m.campaign_name %>?">
+                      <button class="btn subtle-danger sm" type="submit">Remove</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+
+      <div class="card-body" style="border-top:1px solid var(--grey-200)">
+        <h3 style="font-size:14px">Add to a campaign</h3>
+        <form method="post" action="/admin/agents/<%= agent.id %>/memberships">
+          <div class="field-row">
+            <div class="field">
+              <label for="campaign_id">Campaign</label>
+              <select id="campaign_id" name="campaign_id" required>
+                <option value="">Choose…</option>
+                <% availableCampaigns.forEach(function (c) { %>
+                  <option value="<%= c.id %>"><%= c.name %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="field">
+              <label for="commission_profile_id">Rank <span class="muted small">(optional)</span></label>
+              <select id="commission_profile_id" name="commission_profile_id">
+                <option value="">Use the campaign default</option>
+                <% availableCampaigns.forEach(function (c) { (c.profiles || []).forEach(function (p) { %>
+                  <option value="<%= p.id %>"><%= c.name %> — <%= p.name %></option>
+                <% }); }); %>
+              </select>
+            </div>
+          </div>
+          <button class="btn secondary" type="submit">Add to campaign</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Recent leads</h2></div>
+      <% if (!recentLeads.length) { %>
+        <div class="card-body"><p class="muted small mb-0">No leads yet.</p></div>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="data">
+            <tbody>
+              <% recentLeads.forEach(function (l) { var s = statusMeta(l.status); %>
+                <tr>
+                  <td>
+                    <a class="primary" href="/admin/leads/<%= l.id %>"><%= [l.first_name, l.last_name].filter(Boolean).join(' ') || l.email %></a>
+                    <div class="muted"><%= l.campaign_name %></div>
+                  </td>
+                  <td class="right tight">
+                    <span class="badge <%= s.tone %>"><%= s.label %></span>
+                    <div class="muted small"><%= tz.fmtRelative(l.created_at) %></div>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>Account</h2></div>
+      <div class="card-body">
+        <dl class="kv mb-3">
+          <dt>Email</dt><dd><%= agent.email %></dd>
+          <dt>Phone</dt><dd><%= agent.phone || '—' %></dd>
+          <dt>WhatsApp</dt><dd><%= agent.whatsapp_number || '—' %></dd>
+          <dt>Timezone</dt><dd><%= agent.timezone.replace(/_/g, ' ') %></dd>
+          <dt>Signed up</dt><dd><%= tz.fmtShort(agent.created_at, user.timezone) %></dd>
+          <dt>Last seen</dt><dd><%= agent.last_login_at ? tz.fmtRelative(agent.last_login_at) : 'never' %></dd>
+          <dt>Payout method</dt><dd><%= agent.payout_method || '—' %></dd>
+          <% if (agent.payout_details) { %>
+            <dt>Payout details</dt><dd style="white-space:pre-line"><%= agent.payout_details %></dd>
+          <% } %>
+        </dl>
+
+        <div class="btn-row">
+          <form method="post" action="/admin/agents/<%= agent.id %>/role" class="flex">
+            <select name="role">
+              <option value="agent" <%= agent.role === 'agent' ? 'selected' : '' %>>Agent</option>
+              <option value="admin" <%= agent.role === 'admin' ? 'selected' : '' %>>Admin</option>
+            </select>
+            <button class="btn secondary sm" type="submit">Set role</button>
+          </form>
+
+          <form method="post" action="/admin/agents/<%= agent.id %>/status"
+                data-confirm="<%= agent.status === 'active' ? 'Suspend this account? They will be signed out and blocked from signing in.' : 'Reactivate this account?' %>">
+            <input type="hidden" name="status" value="<%= agent.status === 'active' ? 'suspended' : 'active' %>">
+            <button class="btn <%= agent.status === 'active' ? 'subtle-danger' : 'secondary' %> sm" type="submit">
+              <%= agent.status === 'active' ? 'Suspend' : 'Reactivate' %>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="notifications">
+      <div class="card-head">
+        <div>
+          <h2>Notification permissions</h2>
+          <p class="sub">Unticking blocks that channel for this user. They cannot switch it back on — but anything you leave ticked, they can still mute for themselves.</p>
+        </div>
+      </div>
+      <form method="post" action="/admin/agents/<%= agent.id %>/notifications">
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Event</th><th style="width:110px">Email</th><th style="width:130px">WhatsApp</th></tr></thead>
+            <tbody>
+              <% prefs.forEach(function (row) { %>
+                <tr>
+                  <td>
+                    <div class="primary"><%= row.event.label %></div>
+                    <div class="muted small">
+                      user: <%= row.email.userEnabled ? 'on' : 'muted' %> / <%= row.whatsapp.userEnabled ? 'on' : 'muted' %>
+                    </div>
+                  </td>
+                  <% ['email','whatsapp'].forEach(function (ch) { var p = row[ch]; %>
+                    <td>
+                      <div class="check" style="margin:0">
+                        <input type="checkbox" id="a_<%= row.event.key %>__<%= ch %>"
+                               name="<%= row.event.key %>__<%= ch %>" value="1"
+                               <%= p.adminEnabled ? 'checked' : '' %>>
+                        <div><label for="a_<%= row.event.key %>__<%= ch %>" class="visually-hidden">allow</label></div>
+                      </div>
+                    </td>
+                  <% }); %>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <button class="btn" type="submit">Save permissions</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

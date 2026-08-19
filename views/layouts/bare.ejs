@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> · <%= appName %></title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <%- style %>
+</head>
+<body>
+  <div class="bare">
+    <div style="width:100%;max-width:<%= typeof wide !== 'undefined' && wide ? '560' : '428' %>px">
+      <a class="bare-brand" href="/" style="text-decoration:none">
+        <%- include('../partials/logo-mark', { size: 30, mono: false }) %>
+        <span><%= appName %></span>
+      </a>
+      <div class="bare-card <%= typeof wide !== 'undefined' && wide ? 'wide' : '' %>" style="max-width:none">
+        <%- include('../partials/flash') %>
+        <%- body %>
+      </div>
+      <% if (typeof footNote !== 'undefined' && footNote) { %>
+        <p class="bare-foot"><%- footNote %></p>
+      <% } %>
+    </div>
+  </div>
+<script src="/js/app.js"></script>
+<%- script %>
+</body>
+</html>

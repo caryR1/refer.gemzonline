@@ -1,0 +1,141 @@
+<%
+  var s = typeof submitted !== 'undefined' ? submitted : {};
+  function v(key, fallback) { return s[key] !== undefined ? s[key] : (fallback || ''); }
+%>
+<div class="step-dots">
+  <span class="dot"></span><span class="dot on"></span><span class="dot"></span>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <h2>Confirm your details</h2>
+      <p class="sub"><%= campaign.name %> · reference <%= lead.reference %></p>
+    </div>
+  </div>
+
+  <div class="card-body">
+    <% if (errors && errors.length) { %>
+      <div class="alert error">
+        <span>!</span>
+        <div><% errors.forEach(function (e) { %><div><%= e %></div><% }); %></div>
+      </div>
+    <% } %>
+
+    <dl class="kv mb-3">
+      <dt>Name</dt><dd><%= [lead.first_name, lead.last_name].filter(Boolean).join(' ') %></dd>
+      <dt>Email</dt><dd><%= lead.email %></dd>
+      <% if (lead.phone) { %><dt>Phone</dt><dd><%= lead.phone %></dd><% } %>
+      <% if (lead.company) { %><dt>Business</dt><dd><%= lead.company %></dd><% } %>
+    </dl>
+
+    <form method="post" action="/acknowledge/<%= lead.access_token %>">
+
+      <div class="field">
+        <label for="timezone">Your timezone</label>
+        <select id="timezone" name="timezone">
+          <% timezones.forEach(function (zone) { %>
+            <option value="<%= zone %>" <%= (v('timezone', lead.timezone)) === zone ? 'selected' : '' %>><%= zone.replace(/_/g, ' ') %></option>
+          <% }); %>
+        </select>
+        <div class="help">Both times below are in this timezone.</div>
+      </div>
+
+      <% if (campaign.requires_appointment) { %>
+        <div class="center mb-2">
+          <%- include('../partials/art/calendar', { width: 180 }) %>
+        </div>
+
+        <div class="slot-card">
+          <h3>Your preferred time</h3>
+          <p class="sub">When would you like us to call?</p>
+          <div class="field-row">
+            <div class="field mb-0">
+              <label for="primary_date">Date</label>
+              <input type="date" id="primary_date" name="primary_date" required
+                     min="<%= minDate %>" value="<%= v('primary_date') %>">
+            </div>
+            <div class="field mb-0">
+              <label for="primary_time">Time</label>
+              <input type="time" id="primary_time" name="primary_time" required value="<%= v('primary_time') %>">
+            </div>
+          </div>
+          <div class="tz-note" data-zone-echo></div>
+        </div>
+
+        <div class="slot-card backup">
+          <h3>A backup time</h3>
+          <p class="sub">In case the first one falls through.</p>
+          <div class="field-row">
+            <div class="field mb-0">
+              <label for="backup_date">Date</label>
+              <input type="date" id="backup_date" name="backup_date" required
+                     min="<%= minDate %>" value="<%= v('backup_date') %>">
+            </div>
+            <div class="field mb-0">
+              <label for="backup_time">Time</label>
+              <input type="time" id="backup_time" name="backup_time" required value="<%= v('backup_time') %>">
+            </div>
+          </div>
+        </div>
+      <% } %>
+
+      <fieldset>
+        <legend>Staying in touch</legend>
+        <div class="check">
+          <input type="checkbox" id="whatsapp_opt_in" name="whatsapp_opt_in" value="1"
+                 <%= v('whatsapp_opt_in') ? 'checked' : '' %>>
+          <div>
+            <label for="whatsapp_opt_in">Send my confirmation and reminders on WhatsApp too</label>
+            <div class="help">Optional. Email is sent either way.</div>
+          </div>
+        </div>
+        <div class="field mb-0">
+          <label for="whatsapp_number">WhatsApp number</label>
+          <input type="tel" id="whatsapp_number" name="whatsapp_number"
+                 placeholder="Include your country code, e.g. +1 876 555 0100"
+                 value="<%= v('whatsapp_number', lead.phone) %>">
+        </div>
+      </fieldset>
+
+      <% if (campaign.requires_consent) { %>
+        <h3 style="font-size:15px;margin-bottom:8px">Please read and confirm</h3>
+        <div class="consent-box">
+          <%= campaign.consent_text || 'I confirm the details above are accurate and I consent to be contacted by phone and email about this enquiry. I understand I can withdraw my consent at any time by replying to any message we send.' %>
+        </div>
+
+        <div class="check">
+          <input type="checkbox" id="consent" name="consent" value="1" required <%= v('consent') ? 'checked' : '' %>>
+          <div>
+            <label for="consent">I have read the above and I agree.</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="consent_name">Type your full name to confirm</label>
+          <input type="text" id="consent_name" name="consent_name" required
+                 value="<%= v('consent_name', [lead.first_name, lead.last_name].filter(Boolean).join(' ')) %>">
+        </div>
+
+        <% if (campaign.terms_url) { %>
+          <p class="small muted">
+            Our <a href="<%= campaign.terms_url %>" target="_blank" rel="noopener noreferrer">terms</a> apply.
+          </p>
+        <% } %>
+      <% } %>
+
+      <button type="submit" class="btn block lg" data-busy="Confirming…"
+              onclick="rgTrack('acknowledge_submit', { campaign: '<%= campaign.slug %>' })">
+        Confirm my details
+      </button>
+    </form>
+  </div>
+
+  <div class="card-foot">
+    <span class="small muted">
+      Need to change something later? You will get a link by email to edit or cancel your appointment.
+    </span>
+  </div>
+</div>
+
+<script>rgTrack('view_acknowledge', { campaign: '<%= campaign.slug %>' });</script>

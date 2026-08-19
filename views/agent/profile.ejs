@@ -1,0 +1,101 @@
+<div class="page-head">
+  <div>
+    <h1>My profile</h1>
+    <p class="sub">Signed in as <%= user.email %><%= user.auth_provider === 'google' ? ' via Google' : '' %>.</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Your details</h2></div>
+  <div class="card-body">
+    <form method="post" action="/agent/profile">
+      <div class="field-row">
+        <div class="field">
+          <label for="full_name">Full name</label>
+          <input type="text" id="full_name" name="full_name" value="<%= user.full_name || '' %>" required>
+        </div>
+        <div class="field">
+          <label for="timezone">Timezone</label>
+          <select id="timezone" name="timezone">
+            <% timezones.forEach(function (zone) { %>
+              <option value="<%= zone %>" <%= user.timezone === zone ? 'selected' : '' %>><%= zone.replace(/_/g, ' ') %></option>
+            <% }); %>
+          </select>
+          <div class="help">Every date and time you see is shown in this zone.</div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="phone">Phone</label>
+          <input type="tel" id="phone" name="phone" value="<%= user.phone || '' %>">
+        </div>
+        <div class="field">
+          <label for="whatsapp_number">WhatsApp number</label>
+          <input type="tel" id="whatsapp_number" name="whatsapp_number"
+                 placeholder="+1 876 555 0100" value="<%= user.whatsapp_number || '' %>">
+          <div class="help">Include the country code. Needed for WhatsApp notifications.</div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="company">Business name <span class="muted small">(optional)</span></label>
+          <input type="text" id="company" name="company" value="<%= user.company || '' %>">
+        </div>
+        <div class="field">
+          <label for="country">Country</label>
+          <input type="text" id="country" name="country" value="<%= user.country || '' %>">
+        </div>
+      </div>
+
+      <fieldset>
+        <legend>How you would like to be paid</legend>
+        <div class="field">
+          <label for="payout_method">Method</label>
+          <input type="text" id="payout_method" name="payout_method"
+                 placeholder="Bank transfer, PayPal, cheque…" value="<%= user.payout_method || '' %>">
+        </div>
+        <div class="field mb-0">
+          <label for="payout_details">Details</label>
+          <textarea id="payout_details" name="payout_details"
+                    placeholder="Account name, number, branch — whatever we need to pay you"><%= user.payout_details || '' %></textarea>
+          <div class="help">Only administrators can see this.</div>
+        </div>
+      </fieldset>
+
+      <button class="btn" type="submit">Save profile</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Password</h2></div>
+  <div class="card-body">
+    <% if (user.auth_provider === 'google') { %>
+      <p class="small muted">
+        You sign in with Google, so there is no password to change here. You can still
+        set one below if you would like the option of signing in with an email and password too.
+      </p>
+    <% } %>
+    <form method="post" action="/account/password">
+      <% if (user.auth_provider !== 'google') { %>
+        <div class="field">
+          <label for="current_password">Current password</label>
+          <input type="password" id="current_password" name="current_password" autocomplete="current-password" required>
+        </div>
+      <% } %>
+      <div class="field-row">
+        <div class="field">
+          <label for="new_password">New password</label>
+          <input type="password" id="new_password" name="new_password" autocomplete="new-password" required minlength="8">
+        </div>
+        <div class="field">
+          <label for="confirm_password">Confirm new password</label>
+          <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required minlength="8">
+        </div>
+      </div>
+      <button class="btn secondary" type="submit">Change password</button>
+    </form>
+  </div>
+</div>

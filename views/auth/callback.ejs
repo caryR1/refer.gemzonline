@@ -1,0 +1,45 @@
+<div class="center" style="padding:18px 0">
+  <h1 style="font-size:19px;margin-bottom:8px">Signing you in…</h1>
+  <p class="muted small" id="status">Just a moment.</p>
+</div>
+
+<script>
+(function () {
+  var status = document.getElementById('status');
+  var params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  var accessToken = params.get('access_token');
+  var refreshToken = params.get('refresh_token');
+  var errorText = params.get('error_description') || params.get('error');
+
+  function fail(message) {
+    status.textContent = message;
+    status.className = 'small';
+    status.style.color = '#a32b2b';
+    setTimeout(function () {
+      window.location.href = '/login?notice=' + encodeURIComponent(message);
+    }, 2200);
+  }
+
+  if (errorText) return fail(errorText);
+  if (!accessToken) return fail('That sign-in link was incomplete. Try again.');
+
+  fetch('/auth/callback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      next: <%- JSON.stringify(next || '') %>
+    })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.ok && data.redirect) {
+        window.location.replace(data.redirect);
+      } else {
+        fail(data.error || 'We could not complete that sign-in.');
+      }
+    })
+    .catch(function () { fail('Network problem. Try signing in again.'); });
+})();
+</script>

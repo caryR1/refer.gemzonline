@@ -1,0 +1,30 @@
+<h1 style="font-size:19px;margin-bottom:4px"><%= template.name %></h1>
+<p class="muted small">WhatsApp template preview, with sample data.</p>
+
+<dl class="kv mb-3">
+  <dt>Meta template</dt><dd><code><%= rendered.templateName || 'not set' %></code></dd>
+  <dt>Language</dt><dd><%= template.wa_language || 'en_US' %></dd>
+  <dt>Goes to</dt><dd><%= template.send_to %></dd>
+</dl>
+
+<h3 style="font-size:14px">Variable slots</h3>
+<% if (!rendered.variables.length) { %>
+  <p class="muted small">No variables mapped. The approved template will send exactly as written in Meta's console.</p>
+<% } else { %>
+  <table class="data">
+    <thead><tr><th style="width:70px">Slot</th><th>Resolves to</th></tr></thead>
+    <tbody>
+      <% rendered.variables.forEach(function (v, i) { %>
+        <tr><td><code>{{<%= i + 1 %>}}</code></td><td><%= v || '(empty)' %></td></tr>
+      <% }); %>
+    </tbody>
+  </table>
+<% } %>
+
+<div class="alert info mt-3">
+  <span>i</span>
+  <div class="small">
+    The wording itself lives in Meta's console — this app only fills the slots.
+    If the message needs different words, edit and resubmit the template there.
+  </div>
+</div>

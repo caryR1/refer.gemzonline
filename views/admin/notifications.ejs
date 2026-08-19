@@ -1,0 +1,103 @@
+<div class="page-head">
+  <div>
+    <h1>Notification log</h1>
+    <p class="sub">Every message this system has attempted, on either channel.</p>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-body tight">
+      <div class="flex">
+        <span class="badge <%= emailHealth.ok ? 'green' : 'red' %>"><%= emailHealth.ok ? 'Email ready' : 'Email problem' %></span>
+        <span class="small muted"><%= emailHealth.ok ? 'SMTP connection verified.' : emailHealth.error %></span>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body tight">
+      <div class="flex">
+        <span class="badge <%= waHealth.ok ? 'green' : 'slate' %>"><%= waHealth.ok ? 'WhatsApp ready' : 'WhatsApp off' %></span>
+        <span class="small muted"><%= waHealth.ok ? (waHealth.note || 'Connected.') : waHealth.error %></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <form class="filters" method="get" action="/admin/notifications">
+    <div class="field grow">
+      <label for="q">Search</label>
+      <input type="search" id="q" name="q" placeholder="Recipient or subject" value="<%= query.q || '' %>">
+    </div>
+    <div class="field">
+      <label for="channel">Channel</label>
+      <select id="channel" name="channel" data-autosubmit>
+        <option value="">All</option>
+        <option value="email" <%= query.channel === 'email' ? 'selected' : '' %>>Email</option>
+        <option value="whatsapp" <%= query.channel === 'whatsapp' ? 'selected' : '' %>>WhatsApp</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="status">Status</label>
+      <select id="status" name="status" data-autosubmit>
+        <option value="">All</option>
+        <option value="sent" <%= query.status === 'sent' ? 'selected' : '' %>>Sent</option>
+        <option value="failed" <%= query.status === 'failed' ? 'selected' : '' %>>Failed</option>
+        <option value="skipped" <%= query.status === 'skipped' ? 'selected' : '' %>>Skipped</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="event">Event</label>
+      <select id="event" name="event" data-autosubmit>
+        <option value="">All events</option>
+        <% eventOptions.forEach(function (e) { %>
+          <option value="<%= e.key %>" <%= query.event === e.key ? 'selected' : '' %>><%= e.label %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="field"><button class="btn secondary" type="submit">Filter</button></div>
+  </form>
+
+  <% if (!rows.length) { %>
+    <div class="empty">
+      <%- include('../partials/art/empty-search', { width: 150 }) %>
+      <h3>Nothing sent yet</h3>
+      <p>Messages appear here the moment an event fires.</p>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th>When</th><th>To</th><th>Subject</th><th>Event</th><th>Channel</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <% rows.forEach(function (r) { %>
+            <tr>
+              <td class="tight muted"><%= tz.fmtShort(r.created_at, user.timezone) %></td>
+              <td>
+                <%= r.to_address %>
+                <% if (r.recipient) { %><div class="muted small"><%= r.recipient %></div><% } %>
+              </td>
+              <td>
+                <a class="primary" href="/admin/notifications/<%= r.id %>" target="_blank" rel="noopener"><%= r.subject || '(no subject)' %></a>
+                <% if (r.reference) { %><div class="muted small"><%= r.reference %></div><% } %>
+              </td>
+              <td class="muted small">
+                <%= r.trigger_event || 'manual' %>
+                <% if (r.reminder_slot) { %> · slot <%= r.reminder_slot %><% } %>
+              </td>
+              <td><span class="badge <%= r.channel === 'whatsapp' ? 'green' : 'blue' %>"><%= r.channel %></span></td>
+              <td>
+                <span class="badge <%= r.status === 'sent' ? 'green' : (r.status === 'failed' ? 'red' : 'slate') %>"><%= r.status %></span>
+                <% if (r.error) { %><div class="muted small" title="<%= r.error %>"><%= r.error.slice(0, 40) %></div><% } %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <%- include('../partials/pager', { page: page, basePath: basePath, query: query }) %>
+</div>

@@ -1,0 +1,36 @@
+<% var w = typeof width !== 'undefined' ? width : 200; %>
+<svg class="art" width="<%= w %>" viewBox="0 0 220 170" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pick a time">
+  <defs>
+    <linearGradient id="calTop" x1="46" y1="30" x2="174" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#24427f"/><stop offset="1" stop-color="#12244a"/>
+    </linearGradient>
+    <linearGradient id="calBody" x1="46" y1="56" x2="174" y2="140" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/><stop offset="1" stop-color="#eef1f6"/>
+    </linearGradient>
+    <linearGradient id="calClock" x1="140" y1="96" x2="184" y2="140" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35a99b"/><stop offset="1" stop-color="#1c7a70"/>
+    </linearGradient>
+  </defs>
+
+  <ellipse cx="110" cy="150" rx="66" ry="9" fill="#12244a" fill-opacity=".07"/>
+  <rect x="46" y="30" width="128" height="110" rx="15" fill="url(#calBody)" stroke="#e3e7ee" stroke-width="2"/>
+  <path d="M46 45a15 15 0 0 1 15-15h98a15 15 0 0 1 15 15v16H46V45Z" fill="url(#calTop)"/>
+  <rect x="68" y="18" width="8" height="22" rx="4" fill="#5b6675"/>
+  <rect x="144" y="18" width="8" height="22" rx="4" fill="#5b6675"/>
+
+  <g fill="#c6cdd9">
+    <rect x="62" y="74" width="16" height="14" rx="4"/>
+    <rect x="86" y="74" width="16" height="14" rx="4"/>
+    <rect x="110" y="74" width="16" height="14" rx="4"/>
+    <rect x="62" y="96" width="16" height="14" rx="4"/>
+  </g>
+  <rect x="86" y="96" width="16" height="14" rx="4" fill="#f2b544"/>
+  <rect x="62" y="118" width="16" height="12" rx="4" fill="#eef1f6"/>
+  <rect x="86" y="118" width="16" height="12" rx="4" fill="#eef1f6"/>
+
+  <circle cx="162" cy="118" r="26" fill="url(#calClock)"/>
+  <path d="M162 104v15l10 6" stroke="#ffffff" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <path d="M32 56l2.2 5 5 2.2-5 2.2-2.2 5-2.2-5-5-2.2 5-2.2L32 56Z" fill="#f0785a" opacity=".8"/>
+  <circle cx="192" cy="52" r="3.2" fill="#f2b544" opacity=".75"/>
+</svg>

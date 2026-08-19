@@ -1,0 +1,97 @@
+<%# Shared form fields for creating and editing a commission rank. %>
+<div class="field-row wide-first">
+  <div class="field">
+    <label>Rank name</label>
+    <input type="text" name="name" required value="<%= p.name || '' %>" placeholder="Standard, Senior, Partner…">
+  </div>
+  <div class="field">
+    <label>Order</label>
+    <input type="number" name="rank_order" value="<%= p.rank_order || 0 %>">
+    <div class="help">Lower shows first.</div>
+  </div>
+</div>
+
+<div class="field">
+  <label>Description <span class="muted small">(optional)</span></label>
+  <input type="text" name="description" value="<%= p.description || '' %>"
+         placeholder="For agents with six or more closed deals">
+</div>
+
+<fieldset>
+  <legend>The basis</legend>
+  <div class="field-row">
+    <div class="field">
+      <label>Deal value</label>
+      <input type="number" step="0.01" min="0" name="deal_value" value="<%= p.deal_value || 0 %>">
+      <div class="help">What every deal on this rank is worth. Percentages below calculate from it. Not editable per lead.</div>
+    </div>
+    <div class="field">
+      <label>Currency</label>
+      <input type="text" name="currency" maxlength="8" value="<%= p.currency || 'USD' %>">
+    </div>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>Initial commission</legend>
+  <div class="field-row">
+    <div class="field mb-0">
+      <label>Type</label>
+      <select name="initial_type">
+        <option value="percentage" <%= p.initial_type === 'percentage' ? 'selected' : '' %>>Percentage of deal value</option>
+        <option value="fixed" <%= p.initial_type === 'fixed' ? 'selected' : '' %>>Fixed amount</option>
+      </select>
+    </div>
+    <div class="field mb-0">
+      <label>Value</label>
+      <input type="number" step="0.01" min="0" name="initial_value" value="<%= p.initial_value || 0 %>">
+    </div>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>Recurring commission</legend>
+  <div class="check">
+    <input type="checkbox" id="rec-<%= p.id || 'new' %>" name="recurring_enabled" value="1" <%= p.recurring_enabled ? 'checked' : '' %>>
+    <div><label for="rec-<%= p.id || 'new' %>">This rank earns a monthly recurring commission</label></div>
+  </div>
+  <div class="field-row three">
+    <div class="field mb-0">
+      <label>Type</label>
+      <select name="recurring_type">
+        <option value="percentage" <%= p.recurring_type === 'percentage' ? 'selected' : '' %>>Percentage</option>
+        <option value="fixed" <%= p.recurring_type === 'fixed' ? 'selected' : '' %>>Fixed</option>
+      </select>
+    </div>
+    <div class="field mb-0">
+      <label>Value</label>
+      <input type="number" step="0.01" min="0" name="recurring_value" value="<%= p.recurring_value || 0 %>">
+    </div>
+    <div class="field mb-0">
+      <label>Months</label>
+      <input type="number" min="1" max="120" name="recurring_months" value="<%= p.recurring_months || '' %>" placeholder="blank = while active">
+    </div>
+  </div>
+</fieldset>
+
+<div class="field-row three">
+  <div class="field">
+    <label>Payout day</label>
+    <input type="number" min="1" max="28" name="payout_day" value="<%= p.payout_day || 15 %>">
+    <div class="help">Day of the month, 1–28.</div>
+  </div>
+  <div class="field">
+    <label>Status</label>
+    <select name="status">
+      <option value="active" <%= p.status === 'active' ? 'selected' : '' %>>Active</option>
+      <option value="archived" <%= p.status === 'archived' ? 'selected' : '' %>>Archived</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Default rank</label>
+    <div class="check" style="margin:6px 0 0">
+      <input type="checkbox" id="def-<%= p.id || 'new' %>" name="is_default" value="1" <%= p.is_default ? 'checked' : '' %>>
+      <div><label for="def-<%= p.id || 'new' %>">New joiners get this rank</label></div>
+    </div>
+  </div>
+</div>

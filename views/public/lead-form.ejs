@@ -1,0 +1,109 @@
+<div class="step-dots">
+  <span class="dot on"></span><span class="dot"></span><span class="dot"></span>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <h2>Tell us how to reach you</h2>
+      <p class="sub"><%= campaign.name %><%= agentName ? ' · referred by ' + agentName : '' %></p>
+    </div>
+  </div>
+
+  <div class="card-body">
+    <% if (errors && errors.length) { %>
+      <div class="alert error">
+        <span>!</span>
+        <div>
+          <% errors.forEach(function (e) { %><div><%= e %></div><% }); %>
+        </div>
+      </div>
+    <% } %>
+
+    <form method="post" action="/r/<%= slug %>/apply">
+      <div class="field-row">
+        <div class="field">
+          <label for="first_name">First name</label>
+          <input type="text" id="first_name" name="first_name" required autocomplete="given-name"
+                 value="<%= form.first_name || '' %>">
+        </div>
+        <div class="field">
+          <label for="last_name">Last name</label>
+          <input type="text" id="last_name" name="last_name" autocomplete="family-name"
+                 value="<%= form.last_name || '' %>">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" required autocomplete="email"
+               value="<%= form.email || '' %>">
+        <div class="help">We will send your confirmation here.</div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="phone">Phone number</label>
+          <input type="tel" id="phone" name="phone" autocomplete="tel" value="<%= form.phone || '' %>">
+        </div>
+        <div class="field">
+          <label for="company">Business name <span class="muted small">(optional)</span></label>
+          <input type="text" id="company" name="company" autocomplete="organization"
+                 value="<%= form.company || '' %>">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="city">City <span class="muted small">(optional)</span></label>
+          <input type="text" id="city" name="city" autocomplete="address-level2" value="<%= form.city || '' %>">
+        </div>
+        <div class="field">
+          <label for="timezone">Your timezone</label>
+          <select id="timezone" name="timezone" data-detect-timezone>
+            <% timezones.forEach(function (zone) { %>
+              <option value="<%= zone %>" <%= form.timezone === zone ? 'selected' : '' %>><%= zone.replace(/_/g, ' ') %></option>
+            <% }); %>
+          </select>
+          <div class="help">So we suggest times that make sense for you.</div>
+        </div>
+      </div>
+
+      <% var fields = Array.isArray(campaign.custom_fields) ? campaign.custom_fields : []; %>
+      <% if (fields.length) { %>
+        <hr>
+        <% fields.forEach(function (f) { if (!f || !f.key) return; var name = 'custom_' + f.key; var val = form[name] || ''; %>
+          <div class="field">
+            <label for="<%= name %>">
+              <%= f.label || f.key %><% if (!f.required) { %> <span class="muted small">(optional)</span><% } %>
+            </label>
+            <% if (f.type === 'textarea') { %>
+              <textarea id="<%= name %>" name="<%= name %>" <%= f.required ? 'required' : '' %>><%= val %></textarea>
+            <% } else if (f.type === 'select') { %>
+              <select id="<%= name %>" name="<%= name %>" <%= f.required ? 'required' : '' %>>
+                <option value="">Choose one…</option>
+                <% (f.options || []).forEach(function (opt) { %>
+                  <option value="<%= opt %>" <%= val === opt ? 'selected' : '' %>><%= opt %></option>
+                <% }); %>
+              </select>
+            <% } else { %>
+              <input type="<%= f.type === 'number' ? 'number' : 'text' %>" id="<%= name %>" name="<%= name %>"
+                     <%= f.required ? 'required' : '' %> value="<%= val %>">
+            <% } %>
+            <% if (f.help) { %><div class="help"><%= f.help %></div><% } %>
+          </div>
+        <% }); %>
+      <% } %>
+
+      <button type="submit" class="btn block lg" data-busy="Sending…"
+              onclick="rgTrack('lead_form_submit', { campaign: '<%= campaign.slug %>' })">
+        Continue
+      </button>
+      <p class="center small muted mt-2 mb-0">
+        Next you will pick a time that suits you.
+      </p>
+    </form>
+  </div>
+</div>
+
+<script>rgTrack('view_lead_form', { campaign: '<%= campaign.slug %>' });</script>

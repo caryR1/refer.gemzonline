@@ -1,0 +1,35 @@
+<div class="step-dots">
+  <span class="dot"></span><span class="dot"></span><span class="dot on"></span>
+</div>
+
+<div class="card">
+  <div class="card-body center">
+    <%- include('../partials/art/success', { width: 230 }) %>
+
+    <h1 style="font-size:23px;margin-bottom:8px">You are all set, <%= lead.first_name %></h1>
+    <p class="muted" style="max-width:420px;margin:0 auto 20px">
+      <%= campaign.thank_you_message || 'Watch your inbox — your confirmation is on its way, with everything you need.' %>
+    </p>
+
+    <% if (lead.appointment_primary_at) { %>
+      <div style="max-width:420px;margin:0 auto 20px;text-align:left">
+        <dl class="kv">
+          <dt>Reference</dt><dd><strong><%= lead.reference %></strong></dd>
+          <dt>Your time</dt><dd><%= tz.fmt(lead.appointment_primary_at, lead.timezone) %></dd>
+          <% if (lead.appointment_backup_at) { %>
+            <dt>Backup</dt><dd><%= tz.fmt(lead.appointment_backup_at, lead.timezone) %></dd>
+          <% } %>
+          <dt>Our time</dt><dd class="muted"><%= tz.fmtStaff(lead.appointment_primary_at) %></dd>
+        </dl>
+      </div>
+    <% } %>
+
+    <a class="btn secondary" href="/appointment/<%= lead.access_token %>">Edit appointment</a>
+  </div>
+</div>
+
+<p class="center small muted">
+  Keep this page bookmarked, or use the link in your email, to change or cancel your appointment at any time.
+</p>
+
+<script>rgTrack('lead_complete', { campaign: '<%= campaign.slug %>' });</script>

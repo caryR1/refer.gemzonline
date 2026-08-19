@@ -1,0 +1,48 @@
+<div class="page-head">
+  <div>
+    <h1>Campaigns</h1>
+    <p class="sub">Each campaign carries its own commission ranks, funnel content and reminders.</p>
+  </div>
+  <div class="actions"><a class="btn" href="/admin/campaigns/new">New campaign</a></div>
+</div>
+
+<div class="card">
+  <% if (!campaigns.length) { %>
+    <div class="empty">
+      <%- include('../partials/art/empty-campaigns', { width: 150 }) %>
+      <h3>No campaigns yet</h3>
+      <p>A campaign is what agents join and refer people into. Create the first one to get going.</p>
+      <a class="btn" href="/admin/campaigns/new">Create a campaign</a>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Campaign</th><th>Status</th><th class="num">Ranks</th>
+            <th class="num">Agents</th><th class="num">Leads</th><th>Public link</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% campaigns.forEach(function (c) { %>
+            <tr>
+              <td>
+                <a class="primary" href="/admin/campaigns/<%= c.id %>"><%= c.name %></a>
+                <div class="muted"><%= c.client_name || '—' %></div>
+              </td>
+              <td>
+                <span class="badge <%= c.status === 'active' ? 'green' : (c.status === 'paused' ? 'amber' : 'slate') %>"><%= c.status %></span>
+              </td>
+              <td class="num"><%= c.profile_count %></td>
+              <td class="num"><%= c.member_count %></td>
+              <td class="num"><%= c.lead_count %></td>
+              <td class="tight">
+                <code>/r/<%= c.slug %></code>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

@@ -1,0 +1,66 @@
+<div class="page-head">
+  <div>
+    <h1>My profile</h1>
+    <p class="sub"><%= user.email %><%= user.auth_provider === 'google' ? ' · signs in with Google' : '' %></p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Your details</h2></div>
+  <div class="card-body">
+    <form method="post" action="/admin/profile">
+      <div class="field-row">
+        <div class="field">
+          <label for="full_name">Full name</label>
+          <input type="text" id="full_name" name="full_name" required value="<%= user.full_name || '' %>">
+        </div>
+        <div class="field">
+          <label for="timezone">Timezone</label>
+          <select id="timezone" name="timezone">
+            <% timezones.forEach(function (zone) { %>
+              <option value="<%= zone %>" <%= user.timezone === zone ? 'selected' : '' %>><%= zone.replace(/_/g, ' ') %></option>
+            <% }); %>
+          </select>
+          <div class="help">Every date and time in the console is shown in this zone.</div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="phone">Phone</label>
+          <input type="tel" id="phone" name="phone" value="<%= user.phone || '' %>">
+        </div>
+        <div class="field">
+          <label for="whatsapp_number">WhatsApp number</label>
+          <input type="tel" id="whatsapp_number" name="whatsapp_number" value="<%= user.whatsapp_number || '' %>"
+                 placeholder="+1 876 555 0100">
+        </div>
+      </div>
+      <button class="btn" type="submit">Save profile</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Password</h2></div>
+  <div class="card-body">
+    <form method="post" action="/account/password">
+      <% if (user.auth_provider !== 'google') { %>
+        <div class="field">
+          <label for="current_password">Current password</label>
+          <input type="password" id="current_password" name="current_password" autocomplete="current-password" required>
+        </div>
+      <% } %>
+      <div class="field-row">
+        <div class="field">
+          <label for="new_password">New password</label>
+          <input type="password" id="new_password" name="new_password" autocomplete="new-password" required minlength="8">
+        </div>
+        <div class="field">
+          <label for="confirm_password">Confirm</label>
+          <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required minlength="8">
+        </div>
+      </div>
+      <button class="btn secondary" type="submit">Change password</button>
+    </form>
+  </div>
+</div>

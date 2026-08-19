@@ -1,0 +1,31 @@
+<% var w = typeof width !== 'undefined' ? width : 240; %>
+<svg class="success-art" width="<%= w %>" viewBox="0 0 240 190" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Confirmed">
+  <defs>
+    <linearGradient id="scRing" x1="70" y1="42" x2="170" y2="146" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35a99b"/><stop offset="1" stop-color="#1c7a70"/>
+    </linearGradient>
+    <linearGradient id="scCard" x1="60" y1="52" x2="180" y2="150" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/><stop offset="1" stop-color="#eef1f6"/>
+    </linearGradient>
+    <radialGradient id="scGlow" cx="0" cy="0" r="1" gradientTransform="translate(120 96) scale(80)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35a99b" stop-opacity=".2"/><stop offset="1" stop-color="#35a99b" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <circle cx="120" cy="96" r="80" fill="url(#scGlow)"/>
+  <ellipse cx="120" cy="168" rx="72" ry="9" fill="#12244a" fill-opacity=".07"/>
+
+  <rect x="58" y="46" width="124" height="102" rx="16" fill="url(#scCard)" stroke="#e3e7ee" stroke-width="2"/>
+  <rect x="76" y="68" width="60" height="7" rx="3.5" fill="#c6cdd9"/>
+  <rect x="76" y="84" width="88" height="7" rx="3.5" fill="#e3e7ee"/>
+  <rect x="76" y="100" width="44" height="7" rx="3.5" fill="#e3e7ee"/>
+
+  <circle cx="160" cy="126" r="30" fill="url(#scRing)"/>
+  <path d="M147 126.5l8.6 8.6L174 117" stroke="#ffffff" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <path d="M52 34l2.6 6 6 2.6-6 2.6-2.6 6-2.6-6-6-2.6 6-2.6L52 34Z" fill="#f2b544"/>
+  <path d="M198 52l1.9 4.4 4.4 1.9-4.4 1.9-1.9 4.4-1.9-4.4-4.4-1.9 4.4-1.9L198 52Z" fill="#f0785a"/>
+  <circle cx="42" cy="112" r="4" fill="#35a99b" opacity=".5"/>
+  <circle cx="204" cy="104" r="3" fill="#24427f" opacity=".35"/>
+  <circle cx="86" cy="30" r="3" fill="#f0785a" opacity=".5"/>
+</svg>

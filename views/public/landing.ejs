@@ -1,0 +1,52 @@
+<% if (agentName) { %>
+  <div class="referred-by">
+    <div class="avatar"><%= agentName.slice(0,2).toUpperCase() %></div>
+    <div class="who">
+      <strong><%= agentName %></strong> thought this might be useful to you
+      <div>That is why you are seeing this page.</div>
+    </div>
+  </div>
+<% } %>
+
+<div class="hero">
+  <%- include('../partials/art/hero-default', { width: 300 }) %>
+  <h1><%= campaign.headline || campaign.name %></h1>
+  <% if (campaign.hero_subtext) { %>
+    <p><%= campaign.hero_subtext %></p>
+  <% } else if (campaign.description) { %>
+    <p><%= campaign.description %></p>
+  <% } %>
+
+  <div class="btn-row" style="justify-content:center;margin-top:6px">
+    <a class="btn lg" href="/r/<%= slug %>/apply" onclick="rgTrack('cta_click', { campaign: '<%= campaign.slug %>' })">
+      <%= campaign.cta_label || 'Get Started' %>
+    </a>
+  </div>
+
+  <% if (campaign.landing_page_url) { %>
+    <div style="margin-top:16px">
+      <a class="info-link" href="<%= campaign.landing_page_url %>" target="_blank" rel="noopener noreferrer"
+         onclick="rgTrack('info_link_click', { campaign: '<%= campaign.slug %>' })">
+        <%= campaign.landing_link_label || 'Click here for more information' %>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M6 3h7v7M13 3 4 12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    </div>
+  <% } %>
+</div>
+
+<% if (campaign.description && campaign.hero_subtext) { %>
+  <div class="card">
+    <div class="card-body">
+      <h2 style="font-size:16px">What this is about</h2>
+      <p class="mb-0" style="white-space:pre-line"><%= campaign.description %></p>
+    </div>
+  </div>
+<% } %>
+
+<p class="center small muted mt-3">
+  Takes about a minute. No obligation.
+</p>
+
+<script>rgTrack('view_referral_landing', { campaign: '<%= campaign.slug %>' });</script>

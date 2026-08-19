@@ -1,0 +1,280 @@
+<% var s = statusMeta(lead.status); var fullName = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || lead.email; %>
+
+<div class="page-head">
+  <div>
+    <h1><%= fullName %></h1>
+    <p class="sub">
+      <span class="badge <%= s.tone %>"><%= s.label %></span>
+      · <%= campaign.name %> · <%= lead.reference %>
+      <% if (lead.cancelled_by_prospect) { %> · <span class="badge red">cancelled by prospect</span><% } %>
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/admin/leads">Back to leads</a>
+    <a class="btn secondary" href="/appointment/<%= lead.access_token %>" target="_blank" rel="noopener">Their link</a>
+  </div>
+</div>
+
+<% if (lead.relation_code) { %>
+  <div class="alert info">
+    <span>i</span>
+    <div>
+      <strong>Call opener:</strong>
+      <%= (relationOptions.find(function (r) { return r.code === lead.relation_code; }) || {}).label || lead.relation_code %>
+      of <%= agent ? (agent.full_name || agent.email) : 'the referring agent' %>.
+      <% if (lead.relation_note) { %><br><span class="small"><%= lead.relation_note %></span><% } %>
+    </div>
+  </div>
+<% } %>
+
+<div class="grid-2">
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>Contact</h2></div>
+      <div class="card-body">
+        <dl class="kv">
+          <dt>Email</dt><dd><a href="mailto:<%= lead.email %>"><%= lead.email %></a></dd>
+          <% if (lead.phone) { %><dt>Phone</dt><dd><a href="tel:<%= lead.phone %>"><%= lead.phone %></a></dd><% } %>
+          <dt>WhatsApp</dt>
+          <dd>
+            <%= lead.whatsapp_number || '—' %>
+            <% if (lead.whatsapp_number) { %>
+              <span class="badge <%= lead.whatsapp_opt_in ? 'green' : 'amber' %>"><%= lead.whatsapp_opt_in ? 'opted in' : 'no opt-in' %></span>
+            <% } %>
+          </dd>
+          <% if (lead.company) { %><dt>Business</dt><dd><%= lead.company %></dd><% } %>
+          <% if (lead.city || lead.country) { %><dt>Location</dt><dd><%= [lead.city, lead.country].filter(Boolean).join(', ') %></dd><% } %>
+          <dt>Their timezone</dt><dd><%= lead.timezone.replace(/_/g, ' ') %></dd>
+          <dt>Consent</dt>
+          <dd>
+            <% if (lead.consent_given) { %>
+              <span class="badge green">Given</span>
+              <div class="muted small"><%= lead.consent_name %> · <%= tz.fmtShort(lead.consent_at, user.timezone) %> · <%= lead.consent_ip %></div>
+            <% } else { %><span class="badge amber">Not given</span><% } %>
+          </dd>
+          <dt>Source</dt>
+          <dd class="small muted">
+            <%= lead.referral_link_id ? 'Referral link' : 'Campaign link' %>
+            <% if (lead.utm_source) { %> · <%= lead.utm_source %><% } %>
+          </dd>
+          <dt>Added</dt><dd><%= tz.fmtShort(lead.created_at, user.timezone) %></dd>
+        </dl>
+
+        <% var custom = lead.custom || {}; var keys = Object.keys(custom); %>
+        <% if (keys.length) { %>
+          <h3 style="font-size:14px;margin-top:20px">Form answers</h3>
+          <dl class="kv">
+            <% keys.forEach(function (k) { %><dt><%= k.replace(/_/g,' ') %></dt><dd><%= custom[k] %></dd><% }); %>
+          </dl>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Appointment</h2></div>
+      <div class="card-body">
+        <% if (lead.appointment_primary_at) { %>
+          <dl class="kv mb-2">
+            <dt>Primary</dt>
+            <dd>
+              <strong><%= tz.fmtShort(lead.appointment_primary_at, user.timezone) %></strong>
+              <div class="muted small">their time: <%= tz.fmt(lead.appointment_primary_at, lead.timezone) %></div>
+            </dd>
+            <% if (lead.appointment_backup_at) { %>
+              <dt>Backup</dt>
+              <dd>
+                <%= tz.fmtShort(lead.appointment_backup_at, user.timezone) %>
+                <div class="muted small">their time: <%= tz.fmt(lead.appointment_backup_at, lead.timezone) %></div>
+              </dd>
+            <% } %>
+          </dl>
+
+          <form method="post" action="/admin/leads/<%= lead.id %>/appointment" class="flex wrap">
+            <select name="confirmed_slot" style="max-width:230px">
+              <option value="" <%= !lead.confirmed_slot ? 'selected' : '' %>>Primary (assumed)</option>
+              <option value="primary" <%= lead.confirmed_slot === 'primary' ? 'selected' : '' %>>Primary — confirmed</option>
+              <option value="backup" <%= lead.confirmed_slot === 'backup' ? 'selected' : '' %>>Backup — confirmed</option>
+            </select>
+            <button class="btn secondary sm" type="submit">Set confirmed slot</button>
+          </form>
+          <p class="help mt-1 mb-0">Reminders follow whichever slot is confirmed.</p>
+        <% } else { %>
+          <p class="muted small mb-0">No appointment booked.</p>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Relation</h2></div>
+      <div class="card-body">
+        <form method="post" action="/admin/leads/<%= lead.id %>/relation">
+          <div class="field">
+            <label for="relation_code">How the agent knows them</label>
+            <select id="relation_code" name="relation_code">
+              <option value="">Not set</option>
+              <% relationOptions.forEach(function (r) { %>
+                <option value="<%= r.code %>" <%= lead.relation_code === r.code ? 'selected' : '' %>><%= r.label %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div class="field">
+            <label for="relation_note">Context</label>
+            <input type="text" id="relation_note" name="relation_note" value="<%= lead.relation_note || '' %>">
+          </div>
+          <button class="btn secondary" type="submit">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>Status</h2></div>
+      <div class="card-body">
+        <form method="post" action="/admin/leads/<%= lead.id %>/status" class="flex wrap"
+              data-confirm="Change the status? Closing as won creates a commission.">
+          <select name="status" style="max-width:220px">
+            <% LEAD_STATUSES.forEach(function (st) { %>
+              <option value="<%= st.value %>" <%= lead.status === st.value ? 'selected' : '' %>><%= st.label %></option>
+            <% }); %>
+          </select>
+          <button class="btn" type="submit">Update</button>
+        </form>
+
+        <% if (profile) { %>
+          <div class="alert info mt-2" style="margin-bottom:0">
+            <span>i</span>
+            <div>
+              Closing as won pays <strong><%= preview ? money(preview.amount, preview.currency) : '—' %></strong>
+              to <%= agent ? (agent.full_name || agent.email) : 'nobody' %>
+              — <%= profile.name %> rank, <%= util.rateLabel(profile.initial_type, profile.initial_value, profile.currency) %>
+              <% if (profile.initial_type === 'percentage') { %> of <%= money(profile.deal_value, profile.currency) %><% } %>.
+            </div>
+          </div>
+        <% } else { %>
+          <div class="alert warn mt-2" style="margin-bottom:0">
+            <span>!</span>
+            <div>No commission rank applies to this lead's agent on this campaign. Closing as won will not create a commission.</div>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Recurring account</h2></div>
+      <div class="card-body">
+        <dl class="kv mb-2">
+          <dt>State</dt>
+          <dd>
+            <span class="badge <%= lead.account_active ? 'green' : 'slate' %>"><%= lead.account_active ? 'Active' : 'Not active' %></span>
+          </dd>
+          <% if (lead.account_started_on) { %><dt>Since</dt><dd><%= tz.fmtDate(lead.account_started_on) %></dd><% } %>
+          <% if (lead.account_dropped_at) { %><dt>Cancelled</dt><dd><%= tz.fmtShort(lead.account_dropped_at, user.timezone) %></dd><% } %>
+        </dl>
+
+        <form method="post" action="/admin/leads/<%= lead.id %>/account"
+              data-confirm="<%= lead.account_active ? 'Cancel this recurring account? Accrual stops and the agent is notified.' : 'Switch the recurring account on?' %>">
+          <input type="hidden" name="account_active" value="<%= lead.account_active ? '' : '1' %>">
+          <button class="btn <%= lead.account_active ? 'subtle-danger' : 'secondary' %>" type="submit">
+            <%= lead.account_active ? 'Cancel recurring account' : 'Activate recurring account' %>
+          </button>
+        </form>
+        <p class="help mt-1 mb-0">Only a lead closed as won can have an active recurring account.</p>
+      </div>
+    </div>
+
+    <% if (commissionRows.length) { %>
+      <div class="card">
+        <div class="card-head"><h2>Commission</h2></div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Period</th><th>Type</th><th class="num">Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              <% commissionRows.forEach(function (c) { %>
+                <tr>
+                  <td><%= tz.periodLabel(c.period) %></td>
+                  <td class="muted"><%= c.kind %><% if (c.rate_label) { %><div class="small"><%= c.rate_label %></div><% } %></td>
+                  <td class="num"><%= money(c.amount, c.currency) %></td>
+                  <td>
+                    <form method="post" action="/admin/commissions/<%= c.id %>/status" class="flex">
+                      <select name="status" style="min-width:110px">
+                        <% ['pending','approved','paid','void'].forEach(function (st) { %>
+                          <option value="<%= st %>" <%= c.status === st ? 'selected' : '' %>><%= st %></option>
+                        <% }); %>
+                      </select>
+                      <button class="btn secondary sm" type="submit">Set</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% } %>
+
+    <div class="card">
+      <div class="card-head"><h2>Add a note</h2></div>
+      <div class="card-body">
+        <form method="post" action="/admin/leads/<%= lead.id %>/note">
+          <div class="field">
+            <textarea name="body" required placeholder="What happened?"></textarea>
+          </div>
+          <div class="flex">
+            <select name="kind" style="max-width:150px">
+              <option value="note">Note</option>
+              <option value="call">Call</option>
+              <option value="meeting">Meeting</option>
+            </select>
+            <button class="btn" type="submit">Save note</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Activity</h2></div>
+      <div class="card-body">
+        <% if (!notes.length) { %>
+          <p class="muted small mb-0">Nothing logged yet.</p>
+        <% } else { %>
+          <div class="timeline">
+            <% notes.forEach(function (n) { %>
+              <div class="tl-item <%= n.kind %>">
+                <div class="tl-meta">
+                  <strong><%= n.author_name || 'System' %></strong> · <%= tz.fmtShort(n.created_at, user.timezone) %>
+                  <% if (n.kind !== 'note') { %> · <%= n.kind.replace(/_/g,' ') %><% } %>
+                </div>
+                <div class="tl-body"><%= n.body %></div>
+              </div>
+            <% }); %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+    <% if (messages.length) { %>
+      <div class="card">
+        <div class="card-head"><h2>Messages</h2></div>
+        <div class="table-wrap">
+          <table class="data">
+            <tbody>
+              <% messages.forEach(function (m) { %>
+                <tr>
+                  <td>
+                    <a class="primary" href="/admin/notifications/<%= m.id %>" target="_blank" rel="noopener"><%= m.subject || m.trigger_event %></a>
+                    <div class="muted"><%= m.channel %> → <%= m.to_address %></div>
+                  </td>
+                  <td class="right tight">
+                    <span class="badge <%= m.status === 'sent' ? 'green' : (m.status === 'failed' ? 'red' : 'slate') %>"><%= m.status %></span>
+                    <div class="muted small"><%= tz.fmtRelative(m.created_at) %></div>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% } %>
+  </div>
+</div>

@@ -1,0 +1,15 @@
+<% if (page && page.pages > 1) { %>
+<div class="card-foot">
+  <div class="pager" style="width:100%">
+    <span>Showing <strong><%= page.from %></strong>–<strong><%= page.to %></strong> of <strong><%= page.total %></strong></span>
+    <span class="spacer"></span>
+    <% if (page.hasPrev) { %>
+      <a class="btn secondary sm" href="<%= basePath %><%= util.withQuery(query, { page: page.page - 1 }) %>">Previous</a>
+    <% } %>
+    <span>Page <%= page.page %> of <%= page.pages %></span>
+    <% if (page.hasNext) { %>
+      <a class="btn secondary sm" href="<%= basePath %><%= util.withQuery(query, { page: page.page + 1 }) %>">Next</a>
+    <% } %>
+  </div>
+</div>
+<% } %>

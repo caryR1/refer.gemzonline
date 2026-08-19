@@ -1,40 +1,38 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# Secrets — never commit these
+.env
+.env.*
+!.env.example
 
 # Dependencies
 node_modules/
-jspm_packages/
-.pnp
-.pnp.js
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-# Environment
-.env
-.env.local
-.env.*.local
-.env.development
-.env.production
-
-# Build output
-dist/
-build/
-.next/
-out/
-
-# Coverage / cache
-coverage/
-.nyc_output/
-.cache/
-.eslintcache
-
-# Misc
-.DS_Store
+# Logs and runtime
+logs/
+*.log
+npm-debug.log*
+pids/
 *.pid
 *.seed
-*.pid.lock
+
+# PM2
+.pm2/
+ecosystem.local.js
+
+# Build and cache
+.cache/
+dist/
+tmp/
+.temp/
+
+# Editors and OS
 .vscode/
 .idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Uploads written at runtime
+public/uploads/

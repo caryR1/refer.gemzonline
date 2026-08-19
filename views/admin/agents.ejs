@@ -1,0 +1,73 @@
+<div class="page-head">
+  <div>
+    <h1>Agents</h1>
+    <p class="sub"><%= page.total %> account<%= page.total === 1 ? '' : 's' %>. Anyone can sign up with Google and lands here as an agent.</p>
+  </div>
+  <div class="actions"><a class="btn" href="/admin/agents/new">Add an agent</a></div>
+</div>
+
+<div class="card">
+  <form class="filters" method="get" action="/admin/agents">
+    <div class="field grow">
+      <label for="q">Search</label>
+      <input type="search" id="q" name="q" placeholder="Name or email" value="<%= query.q || '' %>">
+    </div>
+    <div class="field">
+      <label for="role">Role</label>
+      <select id="role" name="role" data-autosubmit>
+        <option value="">All roles</option>
+        <option value="agent" <%= query.role === 'agent' ? 'selected' : '' %>>Agent</option>
+        <option value="admin" <%= query.role === 'admin' ? 'selected' : '' %>>Admin</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="status">Status</label>
+      <select id="status" name="status" data-autosubmit>
+        <option value="">All</option>
+        <option value="active" <%= query.status === 'active' ? 'selected' : '' %>>Active</option>
+        <option value="suspended" <%= query.status === 'suspended' ? 'selected' : '' %>>Suspended</option>
+      </select>
+    </div>
+    <div class="field"><button class="btn secondary" type="submit">Filter</button></div>
+  </form>
+
+  <% if (!agents.length) { %>
+    <div class="empty">
+      <%- include('../partials/art/empty-search', { width: 150 }) %>
+      <h3>Nobody matches</h3>
+      <p>Try clearing the filters.</p>
+      <a class="btn secondary" href="/admin/agents">Clear filters</a>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Name</th><th>Role</th><th class="num">Campaigns</th>
+            <th class="num">Leads</th><th class="num">Earned</th><th>Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% agents.forEach(function (a) { %>
+            <tr>
+              <td>
+                <a class="primary" href="/admin/agents/<%= a.id %>"><%= a.full_name || a.email %></a>
+                <div class="muted"><%= a.email %><%= a.auth_provider === 'google' ? ' · Google' : '' %></div>
+              </td>
+              <td>
+                <span class="badge <%= a.role === 'admin' ? 'navy' : 'slate' %>"><%= a.role %></span>
+                <% if (a.status !== 'active') { %> <span class="badge red">suspended</span><% } %>
+              </td>
+              <td class="num"><%= a.campaign_count %></td>
+              <td class="num"><%= a.lead_count %></td>
+              <td class="num"><%= money(a.earned) %></td>
+              <td class="tight muted"><%= tz.fmtDate(a.created_at, user.timezone) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <%- include('../partials/pager', { page: page, basePath: basePath, query: query }) %>
+</div>

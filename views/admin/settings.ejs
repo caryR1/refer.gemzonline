@@ -1,0 +1,143 @@
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p class="sub">Tenant: <%= tenant.name %> (<code><%= tenant.slug %></code>)</p>
+  </div>
+</div>
+
+<% if (problems.length) { %>
+  <div class="alert warn">
+    <span>!</span>
+    <div>
+      <strong>Configuration needs attention</strong>
+      <% problems.forEach(function (p) { %><div class="small"><%= p %></div><% }); %>
+      <div class="small mt-1">These are set in your <code>.env</code> file on the server.</div>
+    </div>
+  </div>
+<% } %>
+
+<div class="card">
+  <div class="card-head"><h2>System health</h2></div>
+  <div class="table-wrap">
+    <table class="data">
+      <tbody>
+        <tr>
+          <td class="primary">Database</td>
+          <td><span class="badge <%= health.database.ok ? 'green' : 'red' %>"><%= health.database.ok ? 'connected' : 'unreachable' %></span></td>
+          <td class="muted small"><%= health.database.error || 'Queries responding normally.' %></td>
+        </tr>
+        <tr>
+          <td class="primary">Email (SMTP)</td>
+          <td><span class="badge <%= health.email.ok ? 'green' : 'red' %>"><%= health.email.ok ? 'ready' : 'not working' %></span></td>
+          <td class="muted small"><%= health.email.error || 'Hostinger SMTP verified.' %></td>
+        </tr>
+        <tr>
+          <td class="primary">WhatsApp</td>
+          <td><span class="badge <%= health.whatsapp.ok ? 'green' : 'slate' %>"><%= health.whatsapp.ok ? 'ready' : 'off' %></span></td>
+          <td class="muted small"><%= health.whatsapp.ok ? (health.whatsapp.note || 'Connected.') : health.whatsapp.error %></td>
+        </tr>
+        <tr>
+          <td class="primary">Google Analytics</td>
+          <td><span class="badge <%= health.analytics.ok ? 'green' : 'slate' %>"><%= health.analytics.ok ? 'tracking' : 'not set' %></span></td>
+          <td class="muted small">
+            <%= health.analytics.ok ? health.analytics.id + ' — public referral pages only' : 'Set GA4_MEASUREMENT_ID to enable.' %>
+          </td>
+        </tr>
+        <tr>
+          <td class="primary">Google sign-in</td>
+          <td><span class="badge <%= health.google.ok ? 'green' : 'slate' %>"><%= health.google.ok ? 'enabled' : 'disabled' %></span></td>
+          <td class="muted small">Anyone with a Google account can self-register as an agent.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-foot">
+    <form method="post" action="/admin/settings/test-email" class="flex">
+      <input type="email" name="to" placeholder="<%= user.email %>" style="max-width:260px">
+      <button class="btn secondary" type="submit">Send a test email</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" id="relations">
+  <div class="card-head">
+    <div>
+      <h2>Relationship options</h2>
+      <p class="sub">How an agent knows a prospect. Used to open the call with something human.</p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Label</th><th>Code</th><th class="num">Order</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% relationOptions.forEach(function (r) { %>
+          <tr>
+            <td class="primary"><%= r.label %></td>
+            <td class="muted"><code><%= r.code %></code></td>
+            <td class="num"><%= r.sort_order %></td>
+            <td><span class="badge <%= r.active ? 'green' : 'slate' %>"><%= r.active ? 'shown' : 'hidden' %></span></td>
+            <td class="right">
+              <form method="post" action="/admin/settings/relations/<%= r.id %>/toggle">
+                <button class="btn secondary sm" type="submit"><%= r.active ? 'Hide' : 'Show' %></button>
+              </form>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-body" style="border-top:1px solid var(--grey-200)">
+    <form method="post" action="/admin/settings/relations">
+      <div class="field-row three">
+        <div class="field">
+          <label for="label">New relationship label</label>
+          <input type="text" id="label" name="label" required placeholder="Godparent">
+        </div>
+        <div class="field">
+          <label for="code">Code <span class="muted small">(optional)</span></label>
+          <input type="text" id="code" name="code" placeholder="godparent">
+        </div>
+        <div class="field">
+          <label for="sort_order">Order</label>
+          <input type="number" id="sort_order" name="sort_order" value="500">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn secondary" type="submit">Add relationship</button>
+        <button class="btn ghost" type="submit" formaction="/admin/settings/seed-relations" formnovalidate data-no-lock>
+          Restore defaults
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <h2>Scheduled job history</h2>
+      <p class="sub">Reminders, monthly accrual, statements, account review and stale-lead alerts.</p>
+    </div>
+  </div>
+  <% if (!jobRuns.length) { %>
+    <div class="card-body"><p class="muted small mb-0">Nothing has run yet.</p></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>When</th><th>Job</th><th>Status</th><th>Detail</th></tr></thead>
+        <tbody>
+          <% jobRuns.forEach(function (j) { %>
+            <tr>
+              <td class="tight muted"><%= tz.fmtShort(j.created_at, user.timezone) %></td>
+              <td class="primary"><%= j.job.replace(/_/g,' ') %></td>
+              <td><span class="badge <%= j.status === 'ok' ? 'green' : 'red' %>"><%= j.status %></span></td>
+              <td class="muted small"><code><%= JSON.stringify(j.detail) %></code></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

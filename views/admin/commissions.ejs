@@ -1,0 +1,150 @@
+<div class="page-head">
+  <div>
+    <h1>Commissions</h1>
+    <p class="sub">Tracking and statements only — no payment is moved by this system.</p>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/admin/commissions.csv<%= util.withQuery(query, { page: null }) %>">Download CSV</a>
+    <form method="post" action="/admin/commissions/accrue"
+          data-confirm="Run the recurring accrual for this month now? It is safe to run twice — nothing double-counts.">
+      <button class="btn secondary" type="submit">Run monthly accrual</button>
+    </form>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="label">Pending approval</div><div class="value"><%= money(totals.pending) %></div></div>
+  <div class="stat"><div class="label">Approved, unpaid</div><div class="value"><%= money(totals.approved) %></div></div>
+  <div class="stat"><div class="label">Paid to date</div><div class="value"><%= money(totals.paid) %></div></div>
+  <div class="stat accent"><div class="label">Outstanding liability</div><div class="value"><%= money(totals.liability) %></div>
+    <div class="meta">pending + approved</div></div>
+</div>
+
+<div class="card">
+  <form class="filters" method="get" action="/admin/commissions">
+    <div class="field">
+      <label for="status">Status</label>
+      <select id="status" name="status" data-autosubmit>
+        <option value="">All</option>
+        <% ['pending','approved','paid','void'].forEach(function (s) { %>
+          <option value="<%= s %>" <%= query.status === s ? 'selected' : '' %>><%= s %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="kind">Type</label>
+      <select id="kind" name="kind" data-autosubmit>
+        <option value="">All</option>
+        <option value="initial" <%= query.kind === 'initial' ? 'selected' : '' %>>Initial</option>
+        <option value="recurring" <%= query.kind === 'recurring' ? 'selected' : '' %>>Recurring</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="agent">Agent</label>
+      <select id="agent" name="agent" data-autosubmit>
+        <option value="">All agents</option>
+        <% agents.forEach(function (a) { %>
+          <option value="<%= a.id %>" <%= query.agent === a.id ? 'selected' : '' %>><%= a.full_name || a.email %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="campaign">Campaign</label>
+      <select id="campaign" name="campaign" data-autosubmit>
+        <option value="">All campaigns</option>
+        <% campaigns.forEach(function (c) { %>
+          <option value="<%= c.id %>" <%= query.campaign === c.id ? 'selected' : '' %>><%= c.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="period">Period</label>
+      <select id="period" name="period" data-autosubmit>
+        <option value="">All periods</option>
+        <% periods.forEach(function (p) { var key = tz.isoDate(p.period); %>
+          <option value="<%= key %>" <%= query.period === key ? 'selected' : '' %>><%= tz.periodLabel(p.period) %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="field"><button class="btn secondary" type="submit">Filter</button></div>
+  </form>
+
+  <% if (!rows.length) { %>
+    <div class="empty">
+      <%- include('../partials/art/empty-search', { width: 150 }) %>
+      <h3>No commissions match</h3>
+      <p>Commission is created when a lead is closed as won.</p>
+      <a class="btn secondary" href="/admin/commissions">Clear filters</a>
+    </div>
+  <% } else { %>
+    <form method="post" action="/admin/commissions/bulk">
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th style="width:34px"></th>
+              <th>Agent</th><th>Lead</th><th>Campaign</th><th>Type</th>
+              <th class="num">Amount</th><th>Status</th><th>Payout</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% rows.forEach(function (c) { %>
+              <tr>
+                <td><input type="checkbox" name="ids" value="<%= c.id %>" aria-label="select"></td>
+                <td>
+                  <a class="primary" href="/admin/agents/<%= c.agent_id %>"><%= c.agent_name || c.agent_email %></a>
+                  <% if (c.profile_name) { %><div class="muted"><%= c.profile_name %></div><% } %>
+                </td>
+                <td>
+                  <% if (c.lead_id) { %>
+                    <a href="/admin/leads/<%= c.lead_id %>"><%= [c.first_name, c.last_name].filter(Boolean).join(' ') || c.reference %></a>
+                  <% } else { %><span class="muted">—</span><% } %>
+                  <div class="muted small"><%= tz.periodLabel(c.period) %></div>
+                </td>
+                <td class="muted"><%= c.campaign_name %></td>
+                <td>
+                  <span class="badge <%= c.kind === 'recurring' ? 'violet' : 'navy' %>"><%= c.kind %></span>
+                  <% if (c.rate_label) { %><div class="muted small"><%= c.rate_label %></div><% } %>
+                </td>
+                <td class="num"><strong><%= money(c.amount, c.currency) %></strong></td>
+                <td>
+                  <span class="badge <%= c.status === 'paid' ? 'green' : (c.status === 'approved' ? 'blue' : (c.status === 'void' ? 'red' : 'amber')) %>"><%= c.status %></span>
+                </td>
+                <td class="tight muted"><%= c.payout_date ? tz.fmtDate(c.payout_date) : '—' %></td>
+                <td class="right">
+                  <div class="flex">
+                    <select name="status" form="row-<%= c.id %>" style="min-width:104px">
+                      <% ['pending','approved','paid','void'].forEach(function (st) { %>
+                        <option value="<%= st %>" <%= c.status === st ? 'selected' : '' %>><%= st %></option>
+                      <% }); %>
+                    </select>
+                    <button class="btn secondary sm" type="submit" form="row-<%= c.id %>">Set</button>
+                  </div>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card-foot">
+        <span class="small muted">Filtered total: <strong><%= money(filteredTotal) %></strong></span>
+        <span class="spacer" style="flex:1"></span>
+        <select name="status" style="max-width:170px">
+          <option value="approved">Mark approved</option>
+          <option value="paid">Mark paid</option>
+          <option value="pending">Back to pending</option>
+          <option value="void">Void</option>
+        </select>
+        <button class="btn" type="submit">Apply to selected</button>
+      </div>
+    </form>
+
+    <%# One tiny form per row, so the row action does not submit the bulk selection. %>
+    <% rows.forEach(function (c) { %>
+      <form id="row-<%= c.id %>" method="post" action="/admin/commissions/<%= c.id %>/status"></form>
+    <% }); %>
+  <% } %>
+
+  <%- include('../partials/pager', { page: page, basePath: basePath, query: query }) %>
+</div>

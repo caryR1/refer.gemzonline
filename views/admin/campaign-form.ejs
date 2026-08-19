@@ -1,0 +1,170 @@
+<div class="page-head">
+  <div>
+    <h1><%= isNew ? 'New campaign' : 'Edit campaign' %></h1>
+    <% if (!isNew) { %><p class="sub"><%= campaign.name %></p><% } %>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="<%= isNew ? '/admin/campaigns' : '/admin/campaigns/' + campaign.id %>">Cancel</a>
+  </div>
+</div>
+
+<form method="post" action="<%= isNew ? '/admin/campaigns' : '/admin/campaigns/' + campaign.id %>">
+
+  <div class="card">
+    <div class="card-head"><h2>The basics</h2></div>
+    <div class="card-body">
+      <div class="field-row wide-first">
+        <div class="field">
+          <label for="name">Campaign name</label>
+          <input type="text" id="name" name="name" required value="<%= campaign.name || '' %>"
+                 placeholder="Business Automation Starter">
+        </div>
+        <div class="field">
+          <label for="status">Status</label>
+          <select id="status" name="status">
+            <% ['active','paused','archived'].forEach(function (s) { %>
+              <option value="<%= s %>" <%= campaign.status === s ? 'selected' : '' %>><%= s %></option>
+            <% }); %>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="slug">URL slug</label>
+          <input type="text" id="slug" name="slug" value="<%= campaign.slug || '' %>" placeholder="automation-starter">
+          <div class="help">The campaign link becomes <code>/r/&lt;slug&gt;</code>. Leave blank to generate one.</div>
+        </div>
+        <div class="field">
+          <label for="client_name">Client name</label>
+          <input type="text" id="client_name" name="client_name" value="<%= campaign.client_name || '' %>"
+                 placeholder="GemzOnline">
+          <div class="help">Shown to prospects as who is behind the offer.</div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="currency">Currency</label>
+          <input type="text" id="currency" name="currency" maxlength="8" value="<%= campaign.currency || 'USD' %>">
+        </div>
+        <div class="field">
+          <label for="notify_emails">Extra notification recipients</label>
+          <input type="text" id="notify_emails" name="notify_emails" value="<%= campaign.notify_emails || '' %>"
+                 placeholder="ops@gemzonline.com, sales@gemzonline.com">
+          <div class="help">Comma separated. These get admin notifications for this campaign by email.</div>
+        </div>
+      </div>
+
+      <div class="field mb-0">
+        <label for="description">Internal description</label>
+        <textarea id="description" name="description" placeholder="What this campaign is, who it suits."><%= campaign.description || '' %></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>The referral page</h2>
+        <p class="sub">What a prospect sees when they follow an agent's link.</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="field">
+        <label for="headline">Headline</label>
+        <input type="text" id="headline" name="headline" value="<%= campaign.headline || '' %>"
+               placeholder="Put your busywork on autopilot">
+      </div>
+
+      <div class="field">
+        <label for="hero_subtext">Supporting line</label>
+        <textarea id="hero_subtext" name="hero_subtext"
+                  placeholder="A short call, a clear plan, and the repetitive parts of your business running themselves."><%= campaign.hero_subtext || '' %></textarea>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="cta_label">Button text</label>
+          <input type="text" id="cta_label" name="cta_label" value="<%= campaign.cta_label || 'Get Started' %>">
+        </div>
+        <div class="field">
+          <label for="thank_you_message">Thank-you message</label>
+          <input type="text" id="thank_you_message" name="thank_you_message" value="<%= campaign.thank_you_message || '' %>"
+                 placeholder="You are all set. Watch your inbox.">
+        </div>
+      </div>
+
+      <fieldset>
+        <legend>More information link</legend>
+        <div class="field">
+          <label for="landing_page_url">Landing page URL</label>
+          <input type="url" id="landing_page_url" name="landing_page_url" value="<%= campaign.landing_page_url || '' %>"
+                 placeholder="https://gemzonline.com/automation">
+          <div class="help">External page with the full detail. Opens in a new tab. Leave blank to hide the link.</div>
+        </div>
+        <div class="field mb-0">
+          <label for="landing_link_label">Link text</label>
+          <input type="text" id="landing_link_label" name="landing_link_label"
+                 value="<%= campaign.landing_link_label || 'Click here for more information' %>">
+        </div>
+      </fieldset>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>The form and acknowledgement</h2>
+        <p class="sub">What you ask for, and what the prospect has to agree to.</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="check">
+        <input type="checkbox" id="requires_appointment" name="requires_appointment" value="1"
+               <%= campaign.requires_appointment ? 'checked' : '' %>>
+        <div>
+          <label for="requires_appointment">Ask for a primary and backup appointment time</label>
+          <div class="help">Turn this off for campaigns that do not involve a call.</div>
+        </div>
+      </div>
+
+      <div class="check">
+        <input type="checkbox" id="requires_consent" name="requires_consent" value="1"
+               <%= campaign.requires_consent ? 'checked' : '' %>>
+        <div>
+          <label for="requires_consent">Require explicit consent before proceeding</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="consent_text">Consent wording</label>
+        <textarea id="consent_text" name="consent_text" style="min-height:120px"
+                  placeholder="I confirm the details above are accurate and I consent to be contacted…"><%= campaign.consent_text || '' %></textarea>
+        <div class="help">Shown in a scrollable box above the tick box. Leave blank to use the standard wording.</div>
+      </div>
+
+      <div class="field">
+        <label for="terms_url">Terms URL <span class="muted small">(optional)</span></label>
+        <input type="url" id="terms_url" name="terms_url" value="<%= campaign.terms_url || '' %>">
+      </div>
+
+      <div class="field mb-0">
+        <label for="custom_fields">Extra form questions</label>
+        <textarea id="custom_fields" name="custom_fields" style="min-height:170px;font-family:var(--mono);font-size:13px"><%= JSON.stringify(campaign.custom_fields || [], null, 2) %></textarea>
+        <div class="help">
+          JSON list. Each entry needs <code>key</code> and <code>label</code>; optional
+          <code>type</code> (text, textarea, select, number), <code>required</code>,
+          <code>options</code> for selects, and <code>help</code>.
+        </div>
+      </div>
+    </div>
+    <div class="card-foot">
+      <button class="btn" type="submit"><%= isNew ? 'Create campaign' : 'Save changes' %></button>
+      <a class="btn secondary" href="<%= isNew ? '/admin/campaigns' : '/admin/campaigns/' + campaign.id %>">Cancel</a>
+      <% if (isNew) { %>
+        <span class="small muted">A "Standard" commission rank and three reminder slots are created for you.</span>
+      <% } %>
+    </div>
+  </div>
+</form>

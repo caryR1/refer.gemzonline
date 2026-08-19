@@ -1,0 +1,46 @@
+<div class="page-head">
+  <div>
+    <h1>Add an agent</h1>
+    <p class="sub">Creates the account directly. They can also sign up themselves with Google.</p>
+  </div>
+  <div class="actions"><a class="btn secondary" href="/admin/agents">Cancel</a></div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" action="/admin/agents">
+      <div class="field">
+        <label for="full_name">Full name</label>
+        <input type="text" id="full_name" name="full_name" required>
+      </div>
+      <div class="field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" required>
+        <div class="help">This is what they sign in with. Tell them the password separately.</div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="password">Temporary password</label>
+          <input type="text" id="password" name="password" required minlength="8">
+          <div class="help">At least 8 characters. They can change it once signed in.</div>
+        </div>
+        <div class="field">
+          <label for="role">Role</label>
+          <select id="role" name="role">
+            <option value="agent">Agent</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="timezone">Timezone</label>
+        <select id="timezone" name="timezone">
+          <% timezones.forEach(function (zone) { %>
+            <option value="<%= zone %>" <%= zone === defaultTimezone ? 'selected' : '' %>><%= zone.replace(/_/g, ' ') %></option>
+          <% }); %>
+        </select>
+      </div>
+      <button class="btn" type="submit">Create account</button>
+    </form>
+  </div>
+</div>

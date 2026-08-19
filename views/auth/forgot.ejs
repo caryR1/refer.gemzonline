@@ -1,0 +1,27 @@
+<% if (typeof sent !== 'undefined' && sent) { %>
+  <div class="center">
+    <h1 style="font-size:20px;margin-bottom:8px">Check your inbox</h1>
+    <p class="muted">
+      If an account exists for <strong><%= email %></strong>, a reset link is on its way.
+      The link works once and expires after an hour.
+    </p>
+    <a class="btn secondary" href="/login">Back to sign in</a>
+  </div>
+<% } else { %>
+  <h1 style="font-size:21px;text-align:center;margin-bottom:6px">Reset your password</h1>
+  <p class="center muted small" style="margin-bottom:22px">
+    We will email you a link to choose a new one.
+  </p>
+
+  <form method="post" action="/forgot-password">
+    <div class="field">
+      <label for="email">Email address</label>
+      <input type="email" id="email" name="email" autocomplete="email" required autofocus>
+    </div>
+    <button type="submit" class="btn block" data-busy="Sending…">Email me a reset link</button>
+  </form>
+
+  <p class="center small muted" style="margin:16px 0 0">
+    <a href="/login">Back to sign in</a>
+  </p>
+<% } %>
