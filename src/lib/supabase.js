@@ -3,8 +3,34 @@
 const { createClient } = require('@supabase/supabase-js');
 const config = require('../config');
 
+/**
+ * No client-side session storage: this is a server, and the signed-in session
+ * lives in an httpOnly cookie we set ourselves.
+ *
+ * `flowType: 'implicit'` is deliberate and load-bearing. supabase-js defaults to
+ * PKCE, where Supabase returns `?code=` and expects a later exchange using a
+ * code verifier the library stashed in its own storage. On a server with
+ * `persistSession: false` there is no storage to stash it in, and the request
+ * that starts a sign-in is not the one that finishes it — so the exchange can
+ * never complete. It fails *after* the Google account picker, which reads like a
+ * dashboard misconfiguration and is not one.
+ *
+ * Implicit returns the tokens in the URL fragment instead, which is what
+ * `views/auth/callback` is built to read: the browser posts them straight back,
+ * they go into an httpOnly cookie, and the fragment is discarded. Fragments are
+ * never sent to servers, so the tokens stay out of every access log on the way.
+ *
+ * The stronger option is PKCE with the verifier held in a short-lived signed
+ * cookie, which would remove the fragment and the relay page entirely. Worth
+ * doing — but it is a different callback contract, not a one-line change.
+ */
 const noStore = {
-  auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+    flowType: 'implicit',
+  },
 };
 
 let anonClient = null;
