@@ -47,17 +47,18 @@ You will need:
    prepared statements, which node-postgres uses. Session pooler is port 5432.
 
    If your password contains `@ : / ? #` or `%`, URL-encode it (`@` → `%40`).
-5. **Authentication → Providers → Google**: switch it on, paste in your Google
-   OAuth client ID and secret (create them in Google Cloud Console → APIs &
-   Services → Credentials → OAuth client ID → Web application).
-6. **Authentication → URL Configuration**:
+5. **Authentication → URL Configuration** — this is the list of places Supabase
+   is allowed to send someone back to after signing in. Needed for password
+   resets whether or not you use Google.
    - Site URL: `https://rportal.gemzonline.com`
    - Redirect URLs: add `https://rportal.gemzonline.com/auth/callback` and
      `https://rportal.gemzonline.com/reset-password`
 
-   In Google Cloud Console, the authorised redirect URI is Supabase's own
-   callback — `https://<your-project>.supabase.co/auth/v1/callback` — not this
-   app's. Supabase then forwards to `/auth/callback` here.
+   Anything not on this list is silently ignored and Supabase falls back to the
+   Site URL — which reads as "sign-in worked but sent me to the wrong page"
+   rather than as an error.
+6. **Google sign-in** — see 1.5 below. It touches three places and the order
+   matters, so it has a section of its own.
 
 ### 1.2 Hostinger email
 
@@ -106,6 +107,72 @@ Start the business verification early if you want WhatsApp near launch — it is
 on Meta's clock, not yours.
 
 ---
+
+### 1.5 Google sign-in
+
+Skip this if you only want email and password. Nothing else depends on it.
+
+The thing that catches everyone: **Google does not point at your app.** It points
+at Supabase, and Supabase then points at your app.
+
+```
+Google    →  https://<project-ref>.supabase.co/auth/v1/callback    Google's redirect URI
+Supabase  →  https://rportal.gemzonline.com/auth/callback          Supabase's redirect list
+```
+
+Put this app's URL into Google's redirect field and you get
+`redirect_uri_mismatch` forever, because Google is never the one talking to us.
+
+**Google Cloud Console** — console.cloud.google.com
+
+1. **APIs & Services → OAuth consent screen.** Choose **External**. Fill in the
+   app name, your support email and the developer contact. Leave the scopes
+   alone: this app reads only the signed-in person's email and name, so it needs
+   nothing sensitive and therefore needs no verification review from Google.
+
+2. **Credentials → Create credentials → OAuth client ID → Web application.**
+
+   *Authorised JavaScript origins*
+   ```
+   https://rportal.gemzonline.com
+   http://localhost:3000
+   ```
+
+   *Authorised redirect URIs* — Supabase's callbacks, not this app's. One Google
+   client can serve both projects, which saves maintaining two:
+   ```
+   https://<production-ref>.supabase.co/auth/v1/callback
+   https://<staging-ref>.supabase.co/auth/v1/callback
+   ```
+
+   Copy the **Client ID** and **Client secret**.
+
+3. **Publish the consent screen.** While it says *Testing*, only email addresses
+   explicitly listed as test users can sign in, capped at 100 — so agents
+   self-registering will simply be refused. With only the default scopes,
+   **Publish app** takes effect immediately; there is no review queue.
+
+**Supabase** — in each project separately, because they are separate projects
+
+4. **Authentication → Providers → Google.** Switch it on, paste the Client ID and
+   secret, save. The page shows you its callback URL — check it matches what you
+   gave Google character for character, including `https` and the absence of a
+   trailing slash.
+
+5. **Authentication → URL Configuration.** Already covered in 1.1 for production.
+   For the staging project use `http://localhost:3000` for both the Site URL and
+   the `/auth/callback` redirect.
+
+**The app**
+
+6. Nothing to do beyond `GOOGLE_SSO_ENABLED=true`, which is the default. The
+   "Continue with Google" button only renders when that is on *and* the Supabase
+   keys are present — so if the button is missing, the keys are the problem, not
+   Google.
+
+One dependency worth knowing: the app builds its `redirectTo` from `APP_URL`. If
+production is still carrying a development `APP_URL`, Google will faithfully
+send your agents to their own machines. Get `APP_URL` right first.
 
 ## Path A — Hostinger VPS
 
@@ -434,9 +501,28 @@ port/secure mismatch is next (465 needs `SMTP_SECURE=true`, 587 needs `false`).
 **Email sends but lands in spam.**
 SPF and DKIM are not set up. hPanel → Emails → DNS settings.
 
-**Google sign-in bounces back to the login page.**
-The redirect URL is not registered in Supabase → Authentication → URL
-Configuration. It must be exactly `https://rportal.gemzonline.com/auth/callback`.
+**Google says `redirect_uri_mismatch` before you even reach a password prompt.**
+The redirect URI registered in Google Cloud Console is not exactly Supabase's
+callback. It must be `https://<project-ref>.supabase.co/auth/v1/callback` — not
+this app's address. Check for a trailing slash and for `http` where it should be
+`https`.
+
+**Google sign-in works, then lands on the wrong page.**
+The app's redirect URL is not registered in Supabase → Authentication → URL
+Configuration, so Supabase ignored it and fell back to the Site URL. Add
+`https://rportal.gemzonline.com/auth/callback` exactly.
+
+**"Access blocked: this app has not completed the Google verification process".**
+The OAuth consent screen is still in *Testing*, where only listed test users can
+sign in. Publish it — with the default scopes this is immediate.
+
+**Google sign-in works locally but sends production users to localhost.**
+`APP_URL` is wrong on the server. Every link the app builds, including the OAuth
+return address, comes from it. `npm run check:prod` reports this.
+
+**The "Continue with Google" button is missing entirely.**
+It renders only when `GOOGLE_SSO_ENABLED` is on and the Supabase keys are set.
+Admin → Settings shows whether the keys verified.
 
 **Emails are not going out at all, and the log shows nothing.**
 No templates are installed. Admin → Settings → First-run setup → Install

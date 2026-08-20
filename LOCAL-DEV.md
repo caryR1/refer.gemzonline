@@ -147,6 +147,12 @@ under **Authentication → URL Configuration**:
 - Redirect URLs: `http://localhost:3000/auth/callback` and
   `http://localhost:3000/reset-password`
 
+The Google Cloud Console side is shared between your two projects and is set up
+once — see **1.5 Google sign-in** in `DEPLOY-HOSTINGER.md`. The short version:
+Google's authorised redirect URI is *Supabase's* callback
+(`https://<project-ref>.supabase.co/auth/v1/callback`), never this app's, and the
+staging project needs its own entry there alongside production's.
+
 Or skip it and use email/password at `/signup` — the first account on an empty
 database becomes an admin either way.
 
