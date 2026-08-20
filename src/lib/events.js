@@ -67,6 +67,13 @@ const EVENTS = [
     userConfigurable: true,
   },
   {
+    key: 'rank_promoted',
+    label: 'Moved up a rank',
+    description: 'An agent met the requirements for a higher commission rank on a campaign.',
+    recipients: ['agent', 'admin'],
+    userConfigurable: true,
+  },
+  {
     key: 'commission_approved',
     label: 'Commission approved',
     description: 'A commission moved from pending to approved.',

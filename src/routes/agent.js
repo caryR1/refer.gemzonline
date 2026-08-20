@@ -22,6 +22,7 @@ const notify = require('../lib/notify');
 const events = require('../lib/events');
 const relations = require('../lib/relations');
 const commissions = require('../lib/commissions');
+const ranks = require('../lib/ranks');
 const payouts = require('../lib/payouts');
 const { requireUser } = require('../middleware/auth');
 
@@ -113,9 +114,15 @@ router.get('/campaigns', async (req, res, next) => {
     const campaigns = await db.all(
       `select c.*,
               cm.id as membership_id, cm.status as membership_status,
-              cp.name as profile_name, cp.initial_type, cp.initial_value,
+              cm.rank_effective_from,
+              cp.id as profile_id, cp.name as profile_name, cp.rank_order,
+              cp.initial_type, cp.initial_value,
               cp.recurring_enabled, cp.recurring_type, cp.recurring_value,
-              cp.recurring_months, cp.deal_value, cp.currency, cp.payout_day,
+              cp.recurring_months, cp.payout_day,
+              -- Aliased on purpose: c.* already yields a deal_value, and an
+              -- unaliased cp.deal_value would shadow it -- losing the campaign
+              -- value in exactly the case that matters, where the rank inherits.
+              cp.deal_value as rank_deal_value,
               rl.slug as link_slug,
               (select count(*) from commission_profiles x
                 where x.campaign_id = c.id and x.status = 'active')::int as profile_count
@@ -128,6 +135,38 @@ router.get('/campaigns', async (req, res, next) => {
         order by (cm.id is not null) desc, c.name`,
       [req.tenant.id, req.user.id]
     );
+
+    // What the next rank is, and how far off it is.
+    //
+    // A rank nobody can see the requirements for is decoration. Showing the
+    // target and the current count is the whole reason for making promotion
+    // automatic rather than a favour an admin remembers to do.
+    await Promise.all(campaigns.map(async (c) => {
+      c.deal_value_effective = (c.rank_deal_value === null || c.rank_deal_value === undefined)
+        ? Number(c.deal_value || 0)
+        : Number(c.rank_deal_value);
+
+      if (!c.membership_id) return;
+
+      const campaignRanks = await db.all(
+        "select * from commission_profiles where campaign_id = $1 and status = 'active' order by rank_order",
+        [c.id]
+      );
+      const promotable = campaignRanks.filter((r) => r.auto_promote
+        && (Number(r.rank_order) || 0) > (Number(c.rank_order) || 0));
+      if (!promotable.length) return;
+
+      const stats = await commissions.agentCampaignStats(req.tenant.id, req.user.id, c.id);
+      const next = promotable[0];
+
+      c.progress = {
+        name: next.name,
+        requirement: ranks.requirementLabel(next, (n) => util.money(n, c.currency)),
+        deals: { have: stats.closedDeals, need: next.promote_after_deals || null },
+        earned: { have: stats.earned, need: next.promote_after_amount || null },
+        rate: util.rateLabel(next.initial_type, next.initial_value, c.currency),
+      };
+    }));
 
     res.render('agent/campaigns', {
       title: 'Campaigns',
@@ -151,17 +190,29 @@ router.post('/campaigns/:id/join', async (req, res, next) => {
     }
 
     // Joining is instant. The campaign's default rank is assigned automatically.
+    //
+    // If no rank is marked default, fall back to the most junior active one
+    // rather than leaving the agent unranked. An unranked agent can refer leads
+    // perfectly well and then earns nothing, and nobody discovers it until the
+    // deal closes — long after the work is done and much too late to be fair
+    // about. Least seniority is the safe guess; an admin can raise it.
     const defaultProfile = await db.one(
-      "select * from commission_profiles where campaign_id = $1 and is_default and status = 'active'",
+      `select * from commission_profiles
+        where campaign_id = $1 and status = 'active'
+        order by is_default desc, rank_order asc, created_at asc
+        limit 1`,
       [campaign.id]
     );
 
     const member = await db.one(
-      `insert into campaign_members (tenant_id, campaign_id, agent_id, commission_profile_id, status)
-       values ($1,$2,$3,$4,'active')
+      `insert into campaign_members
+         (tenant_id, campaign_id, agent_id, commission_profile_id, status,
+          rank_effective_from, rank_set_by)
+       values ($1,$2,$3,$4,'active', current_date, 'join')
        on conflict (campaign_id, agent_id)
        do update set status = 'active', left_at = null,
-                     commission_profile_id = coalesce(campaign_members.commission_profile_id, excluded.commission_profile_id)
+                     commission_profile_id = coalesce(campaign_members.commission_profile_id, excluded.commission_profile_id),
+                     rank_effective_from = coalesce(campaign_members.rank_effective_from, current_date)
        returning *`,
       [req.tenant.id, campaign.id, req.user.id, defaultProfile ? defaultProfile.id : null]
     );

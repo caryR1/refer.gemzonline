@@ -61,7 +61,7 @@
               <dd>
                 <strong><%= util.rateLabel(c.initial_type, c.initial_value, c.currency) %></strong>
                 <% if (c.initial_type === 'percentage') { %>
-                  <span class="muted">of <%= money(c.deal_value, c.currency) %> = <%= money((c.deal_value * c.initial_value) / 100, c.currency) %></span>
+                  <span class="muted">of <%= money(c.deal_value_effective, c.currency) %> = <%= money((c.deal_value_effective * c.initial_value) / 100, c.currency) %></span>
                 <% } %>
               </dd>
               <% if (c.recurring_enabled) { %>
@@ -76,6 +76,35 @@
               <dt>Paid on</dt>
               <dd>Day <%= c.payout_day %> of the month</dd>
             </dl>
+
+            <% if (c.progress) { %>
+              <div class="alert info" style="margin-bottom:0">
+                <span>↑</span>
+                <div>
+                  <strong>Next rank: <%= c.progress.name %></strong>
+                  <% if (c.progress.rate) { %> — <%= c.progress.rate %><% } %>
+                  <div class="small">
+                    <% if (c.progress.deals.need) { %>
+                      <div>
+                        Closed deals: <strong><%= c.progress.deals.have %></strong> of <%= c.progress.deals.need %>
+                        <% if (c.progress.deals.have >= c.progress.deals.need) { %> ✓<% } %>
+                      </div>
+                    <% } %>
+                    <% if (c.progress.earned.need) { %>
+                      <div>
+                        Earned: <strong><%= money(c.progress.earned.have, c.currency) %></strong>
+                        of <%= money(c.progress.earned.need, c.currency) %>
+                        <% if (c.progress.earned.have >= c.progress.earned.need) { %> ✓<% } %>
+                      </div>
+                    <% } %>
+                  </div>
+                  <div class="small muted mt-1">
+                    You move up automatically once you get there. New terms apply to leads
+                    referred after that — anything already in hand keeps the terms it came in under.
+                  </div>
+                </div>
+              </div>
+            <% } %>
           </fieldset>
         <% } else if (joined) { %>
           <div class="alert warn">

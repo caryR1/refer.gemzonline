@@ -71,4 +71,52 @@ function withinRecurringWindow({ startedOn, period, recurringMonths }) {
   return months >= 1 && months <= recurringMonths;
 }
 
-module.exports = { calculate, round2, withinRecurringWindow };
+/**
+ * The basis a commission calculates from, and where it came from.
+ *
+ * Three layers, most specific first:
+ *
+ *   1. the product recorded on the lead at close — snapshotted, so repricing a
+ *      product next quarter cannot reprice a deal that closed this one
+ *   2. the rank's own deal value, when it deliberately overrides
+ *   3. the campaign's deal value, which is what a single-product campaign uses
+ *
+ * A campaign with no product list lands on layer 2 or 3 and behaves exactly as
+ * it did before products existed.
+ *
+ * Lives here rather than in lib/products because it is arithmetic, not data
+ * access — this file stays free of the database so the money maths can be
+ * tested without one.
+ */
+function basisFor(lead, terms) {
+  if (lead && lead.product_value !== null && lead.product_value !== undefined) {
+    return {
+      amount: Number(lead.product_value) || 0,
+      source: 'product',
+      label: lead.product_name || 'Product',
+    };
+  }
+  if (terms && terms.deal_value !== null && terms.deal_value !== undefined) {
+    const fromRank = terms.deal_value_source === 'rank';
+    return {
+      amount: Number(terms.deal_value) || 0,
+      source: fromRank ? 'rank' : 'campaign',
+      label: fromRank ? 'Rank deal value' : 'Campaign deal value',
+    };
+  }
+  return { amount: 0, source: 'none', label: 'No deal value set' };
+}
+
+/**
+ * Terms with the product's value layered in.
+ *
+ * Returns a copy. The snapshot stored on a lead is a record of a moment, and
+ * something merely reading it must not be able to change what it says.
+ */
+function applyProduct(terms, lead) {
+  if (!terms) return null;
+  const basis = basisFor(lead, terms);
+  return { ...terms, deal_value: basis.amount, deal_value_source: basis.source };
+}
+
+module.exports = { calculate, round2, withinRecurringWindow, basisFor, applyProduct };

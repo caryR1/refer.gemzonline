@@ -176,6 +176,8 @@ const ACTION_LABELS = {
   'commission.adjusted': 'Commission adjusted',
   'lead.created': 'Lead created',
   'lead.status_changed': 'Lead status changed',
+  'lead.reopened': 'Closed lead reopened',
+  'commission.reversed': 'Commission reversed',
   'lead.consent_given': 'Consent captured',
   'lead.appointment_changed': 'Appointment changed',
   'lead.rescheduled': 'Appointment rescheduled by prospect',

@@ -269,6 +269,192 @@ test('an admin block wins even when the user wants it', () => assert.strictEqual
 test('both off stays off', () => assert.strictEqual(effective(false, false), false));
 
 // ---------------------------------------------------------------------------
+group('Rank terms');
+
+const rankLib = require('../src/lib/ranks');
+
+const campaign = { id: 'c1', currency: 'JMD', deal_value: 1500 };
+const standard = {
+  id: 'r1', name: 'Standard', rank_order: 0,
+  initial_type: 'percentage', initial_value: 10,
+  recurring_enabled: false, recurring_type: 'percentage', recurring_value: 0,
+  recurring_months: null, payout_day: 15, deal_value: null, currency: 'USD', status: 'active',
+};
+const senior = {
+  ...standard, id: 'r2', name: 'Senior', rank_order: 10, initial_value: 15,
+  auto_promote: true, promote_after_deals: 6, promote_after_amount: null,
+};
+
+test('a rank with no deal value inherits the campaign', () => {
+  const t = rankLib.resolveTerms(standard, campaign);
+  assert.strictEqual(t.deal_value, 1500);
+  assert.strictEqual(t.deal_value_source, 'campaign');
+});
+
+test('a rank can override the campaign deal value', () => {
+  const t = rankLib.resolveTerms({ ...standard, deal_value: 500 }, campaign);
+  assert.strictEqual(t.deal_value, 500);
+  assert.strictEqual(t.deal_value_source, 'rank');
+});
+
+test('an explicit zero is an override, not an absence', () => {
+  // Blank means inherit; a typed 0 means this rank really does earn nothing on
+  // percentages. Collapsing the two would silently pay the campaign rate.
+  const t = rankLib.resolveTerms({ ...standard, deal_value: 0 }, campaign);
+  assert.strictEqual(t.deal_value, 0);
+  assert.strictEqual(t.deal_value_source, 'rank');
+});
+
+test('the campaign owns the currency, whatever the rank says', () => {
+  assert.strictEqual(rankLib.resolveTerms(standard, campaign).currency, 'JMD');
+});
+
+test('a snapshot survives the rank being edited afterwards', () => {
+  const lead = { terms: rankLib.snapshot(standard, campaign) };
+
+  // The rank is generous now, and the campaign is worth more. Neither reaches
+  // backwards: the lead was referred on the old terms and keeps them.
+  const editedRank = { ...standard, initial_value: 50 };
+  const richerCampaign = { ...campaign, deal_value: 99999 };
+
+  const terms = rankLib.termsForLead(lead, { profile: editedRank, campaign: richerCampaign });
+  assert.strictEqual(terms.initial_value, 10);
+  assert.strictEqual(terms.deal_value, 1500);
+  assert.strictEqual(math.calculate(terms, 'initial').amount, 150);
+});
+
+test('a lead with no snapshot falls back to the live rank', () => {
+  // Leads referred before snapshots existed must keep behaving as they did,
+  // not suddenly calculate from nothing.
+  const terms = rankLib.termsForLead({ terms: null }, { profile: standard, campaign });
+  assert.strictEqual(terms.initial_value, 10);
+  assert.strictEqual(rankLib.isSnapshotted({ terms: null }), false);
+});
+
+test('the snapshot is shaped so the money maths cannot tell the difference', () => {
+  const snap = rankLib.snapshot(senior, campaign);
+  const live = rankLib.resolveTerms(senior, campaign);
+  assert.strictEqual(math.calculate(snap, 'initial').amount, math.calculate(live, 'initial').amount);
+  assert.ok(snap.captured_at, 'a snapshot records when it was taken');
+});
+
+// ---------------------------------------------------------------------------
+group('Products and the commission basis');
+
+// The basis rules are arithmetic and live in commission-math, so they can be
+// tested without a database. lib/products re-exports them for callers.
+const productLib = math;
+
+test('the product decides the value when there is one', () => {
+  const terms = rankLib.resolveTerms(standard, campaign);      // campaign is 1500
+  const lead = { product_value: 5000, product_name: 'Enterprise' };
+  const basis = productLib.basisFor(lead, terms);
+  assert.strictEqual(basis.amount, 5000);
+  assert.strictEqual(basis.source, 'product');
+});
+
+test('without a product it falls back to the rank, then the campaign', () => {
+  const inherited = rankLib.resolveTerms(standard, campaign);
+  assert.strictEqual(productLib.basisFor({}, inherited).source, 'campaign');
+
+  const overriding = rankLib.resolveTerms({ ...standard, deal_value: 750 }, campaign);
+  assert.strictEqual(productLib.basisFor({}, overriding).source, 'rank');
+  assert.strictEqual(productLib.basisFor({}, overriding).amount, 750);
+});
+
+test('rank sets the rate, product sets the value', () => {
+  // Standard is 10%, Senior 15%. Enterprise is 5000, Starter 500. The four
+  // combinations should give four different, predictable answers.
+  const cases = [
+    [standard, 5000, 500],
+    [standard, 500, 50],
+    [senior, 5000, 750],
+    [senior, 500, 75],
+  ];
+  cases.forEach(([rank, value, expected]) => {
+    const terms = productLib.applyProduct(rankLib.resolveTerms(rank, campaign), { product_value: value });
+    assert.strictEqual(math.calculate(terms, 'initial').amount, expected,
+      `${rank.name} on a ${value} product`);
+  });
+});
+
+test('a snapshot is not mutated by having a product applied to it', () => {
+  // The snapshot is a record of a moment. Something reading it must not be able
+  // to change what it says.
+  const snap = rankLib.snapshot(standard, campaign);
+  productLib.applyProduct(snap, { product_value: 9999 });
+  assert.strictEqual(snap.deal_value, 1500, 'the stored snapshot must be untouched');
+});
+
+test('a free product is a real answer, not a missing one', () => {
+  const terms = rankLib.resolveTerms(standard, campaign);
+  assert.strictEqual(productLib.basisFor({ product_value: 0 }, terms).amount, 0);
+  assert.strictEqual(productLib.basisFor({ product_value: 0 }, terms).source, 'product');
+});
+
+test('nothing configured anywhere reports itself rather than guessing', () => {
+  const basis = productLib.basisFor({}, null);
+  assert.strictEqual(basis.amount, 0);
+  assert.strictEqual(basis.source, 'none');
+});
+
+// ---------------------------------------------------------------------------
+group('Promotion');
+
+test('a rank with no threshold never promotes anyone', () => {
+  assert.strictEqual(rankLib.qualifies({ ...senior, promote_after_deals: null }, { closedDeals: 999 }), false);
+});
+
+test('a rank that is not set to auto-promote is never reached', () => {
+  assert.strictEqual(rankLib.qualifies({ ...senior, auto_promote: false }, { closedDeals: 999 }), false);
+});
+
+test('the threshold has to actually be met', () => {
+  assert.strictEqual(rankLib.qualifies(senior, { closedDeals: 5 }), false);
+  assert.strictEqual(rankLib.qualifies(senior, { closedDeals: 6 }), true);
+});
+
+test('two thresholds means both, not either', () => {
+  const both = { ...senior, promote_after_deals: 6, promote_after_amount: 5000 };
+  assert.strictEqual(rankLib.qualifies(both, { closedDeals: 6, earned: 4999 }), false);
+  assert.strictEqual(rankLib.qualifies(both, { closedDeals: 5, earned: 9000 }), false);
+  assert.strictEqual(rankLib.qualifies(both, { closedDeals: 6, earned: 5000 }), true);
+});
+
+test('promotion never moves an agent down', () => {
+  const partner = { ...senior, id: 'r3', name: 'Partner', rank_order: 20, promote_after_deals: 20 };
+  const all = [standard, senior, partner];
+  // Already Partner, and nothing above it qualifies.
+  assert.strictEqual(rankLib.nextRankFor(all, partner, { closedDeals: 999 }), null);
+  // Already Senior — Standard is below, so it is never a candidate.
+  assert.strictEqual(rankLib.nextRankFor(all, senior, { closedDeals: 6 }), null);
+});
+
+test('an agent who blows past two thresholds lands at the top of them', () => {
+  const partner = { ...senior, id: 'r3', name: 'Partner', rank_order: 20, promote_after_deals: 20 };
+  const next = rankLib.nextRankFor([standard, senior, partner], standard, { closedDeals: 25 });
+  assert.strictEqual(next.name, 'Partner', 'should not climb one rank a night');
+});
+
+test('an archived rank is not a promotion target', () => {
+  const archived = { ...senior, status: 'archived' };
+  assert.strictEqual(rankLib.nextRankFor([standard, archived], standard, { closedDeals: 99 }), null);
+});
+
+test('an unranked agent can still be promoted into the first rank', () => {
+  const entry = { ...standard, rank_order: 0, auto_promote: true, promote_after_deals: 1 };
+  assert.strictEqual(rankLib.nextRankFor([entry], null, { closedDeals: 1 }).name, 'Standard');
+});
+
+test('the requirement reads as a sentence', () => {
+  assert.strictEqual(rankLib.requirementLabel(senior), '6 closed deals');
+  assert.strictEqual(
+    rankLib.requirementLabel({ ...senior, promote_after_amount: 5000 }, (n) => `$${n}`),
+    '6 closed deals and $5000 earned'
+  );
+});
+
+// ---------------------------------------------------------------------------
 group('Address formatting');
 
 test('a full address reads like an envelope', () => {

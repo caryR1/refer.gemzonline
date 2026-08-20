@@ -153,6 +153,22 @@ const TEMPLATES = [
 <p><a class="button" href="{{app.url}}/agent/earnings">View my earnings</a></p>`,
   },
   {
+    channel: 'email', slug: 'agent-rank-promoted', name: 'Agent — moved up a rank',
+    trigger_event: 'rank_promoted', send_to: 'agent',
+    subject: 'You have reached {{rank.name}} on {{campaign.name}}',
+    body_html: `<h2>You have moved up, {{agent.first_name}}</h2>
+<p>You have earned <strong>{{rank.name}}</strong> on {{campaign.name}}, up from {{rank.previous}}.</p>
+<table class="data">
+  <tr><th>New rank</th><td>{{rank.name}}</td></tr>
+  <tr><th>Initial commission</th><td>{{rank.initial}}</td></tr>
+  <tr><th>Closed deals</th><td>{{rank.closed_deals}}</td></tr>
+  <tr><th>Earned so far</th><td>{{rank.earned}}</td></tr>
+</table>
+<p>The new rate applies to leads you refer from now on. Anything already in hand keeps the
+terms it came in under, so nothing you have already earned changes.</p>
+<p><a class="button" href="{{app.url}}/agent/campaigns">See my campaigns</a></p>`,
+  },
+  {
     channel: 'email', slug: 'agent-commission-approved', name: 'Agent — commission approved',
     trigger_event: 'commission_approved', send_to: 'agent',
     subject: 'Your {{commission.amount}} commission is approved',

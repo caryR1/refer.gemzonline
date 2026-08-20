@@ -187,6 +187,8 @@ const VARIABLE_REFERENCE = [
   { group: 'Agent', vars: ['agent.full_name', 'agent.first_name', 'agent.email', 'agent.phone', 'agent.company'] },
   { group: 'Campaign', vars: ['campaign.name', 'campaign.client_name', 'campaign.description', 'campaign.url', 'campaign.landing_page_url'] },
   { group: 'Commission', vars: ['commission.amount', 'commission.kind', 'commission.period', 'commission.status', 'commission.payout_date'] },
+  // Only present on the "moved up a rank" event.
+  { group: 'Rank', vars: ['rank.name', 'rank.previous', 'rank.initial', 'rank.requirement', 'rank.closed_deals', 'rank.earned'] },
   { group: 'App', vars: ['app.name', 'app.url', 'app.year', 'app.support_email'] },
 ];
 

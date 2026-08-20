@@ -17,6 +17,7 @@ const tz = require('../lib/tz');
 const util = require('../lib/util');
 const audit = require('../lib/audit');
 const notify = require('../lib/notify');
+const products = require('../lib/products');
 const events = require('../lib/events');
 const mailer = require('../lib/mailer');
 const whatsapp = require('../lib/whatsapp');
@@ -158,6 +159,10 @@ function readCampaignBody(body) {
     description: util.text(body.description, 4000),
     status: ['active', 'paused', 'archived'].includes(body.status) ? body.status : 'active',
     currency: util.text(body.currency, 8) || 'USD',
+    // What one deal here is worth. Lives on the campaign because it describes
+    // the product, not the person who sold it — every rank inherits it unless
+    // it deliberately overrides.
+    deal_value: util.num(body.deal_value, 0),
     headline: util.text(body.headline, 200),
     hero_subtext: util.text(body.hero_subtext, 400),
     cta_label: util.text(body.cta_label, 60) || 'Get Started',
@@ -187,15 +192,16 @@ router.post('/campaigns', async (req, res, next) => {
 
     const campaign = await db.one(
       `insert into campaigns
-        (tenant_id, name, slug, client_name, description, status, currency, headline,
-         hero_subtext, cta_label, thank_you_message, landing_page_url, landing_link_label,
-         requires_appointment, requires_consent, consent_text, terms_url, notify_emails, custom_fields)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+        (tenant_id, name, slug, client_name, description, status, currency, deal_value,
+         headline, hero_subtext, cta_label, thank_you_message, landing_page_url,
+         landing_link_label, requires_appointment, requires_consent, consent_text,
+         terms_url, notify_emails, custom_fields)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        returning *`,
       [
         req.tenant.id, data.name, data.slug, data.client_name, data.description,
-        data.status, data.currency, data.headline, data.hero_subtext, data.cta_label,
-        data.thank_you_message, data.landing_page_url, data.landing_link_label,
+        data.status, data.currency, data.deal_value, data.headline, data.hero_subtext,
+        data.cta_label, data.thank_you_message, data.landing_page_url, data.landing_link_label,
         data.requires_appointment, data.requires_consent, data.consent_text,
         data.terms_url, data.notify_emails, JSON.stringify(data.custom_fields),
       ]
@@ -211,10 +217,12 @@ router.post('/campaigns', async (req, res, next) => {
     }
 
     // A campaign with no rank cannot pay anybody — seed a sensible default.
+    // deal_value is left null so it inherits the campaign's, which is the
+    // behaviour you want for the overwhelming majority of ranks.
     await db.query(
       `insert into commission_profiles
         (tenant_id, campaign_id, name, is_default, initial_type, initial_value, deal_value, currency)
-       values ($1,$2,'Standard',true,'percentage',10,0,$3)`,
+       values ($1,$2,'Standard',true,'percentage',10,null,$3)`,
       [req.tenant.id, campaign.id, data.currency]
     );
 
@@ -239,7 +247,7 @@ router.get('/campaigns/:id', async (req, res, next) => {
     const campaign = await db.one('select * from campaigns where id = $1 and tenant_id = $2', [req.params.id, req.tenant.id]);
     if (!campaign) return next();
 
-    const [profiles, members, reminders, stats, notificationTemplates] = await Promise.all([
+    const [profiles, members, reminders, stats, notificationTemplates, productList] = await Promise.all([
       db.all(
         `select cp.*, (select count(*) from campaign_members cm
                         where cm.commission_profile_id = cp.id and cm.status = 'active')::int as member_count
@@ -269,9 +277,11 @@ router.get('/campaigns/:id', async (req, res, next) => {
         'select id, name, channel, trigger_event from notification_templates where tenant_id = $1 and active order by name',
         [req.tenant.id]
       ),
+      products.list(campaign.id, { includeInactive: true }),
     ]);
 
     res.render('admin/campaign-detail', {
+      productList,
       title: campaign.name,
       campaign,
       profiles,
@@ -315,22 +325,42 @@ router.post('/campaigns/:id', async (req, res, next) => {
       if (clash) data.slug = `${data.slug}-${util.token(4)}`;
     }
 
+    // A live campaign with no rank takes referrals it can never pay for. The
+    // agent does the work, the lead closes, and the commission cannot be
+    // calculated — discovered far too late to be fair about. Refuse to publish.
+    if (data.status === 'active' && before.status !== 'active') {
+      const rankCount = await db.one(
+        "select count(*)::int as n from commission_profiles where campaign_id = $1 and status = 'active'",
+        [before.id]
+      );
+      if (!rankCount || rankCount.n === 0) {
+        req.flash('error', 'This campaign has no active commission rank, so a closed lead could not be paid. Add a rank before making it live.');
+        return res.redirect(`/admin/campaigns/${before.id}#ranks`);
+      }
+    }
+
     const after = await db.one(
       `update campaigns set
          name=$2, slug=$3, client_name=$4, description=$5, status=$6, currency=$7,
-         headline=$8, hero_subtext=$9, cta_label=$10, thank_you_message=$11,
-         landing_page_url=$12, landing_link_label=$13, requires_appointment=$14,
-         requires_consent=$15, consent_text=$16, terms_url=$17, notify_emails=$18,
-         custom_fields=$19
+         deal_value=$8, headline=$9, hero_subtext=$10, cta_label=$11,
+         thank_you_message=$12, landing_page_url=$13, landing_link_label=$14,
+         requires_appointment=$15, requires_consent=$16, consent_text=$17,
+         terms_url=$18, notify_emails=$19, custom_fields=$20
        where id=$1 returning *`,
       [
         before.id, data.name, data.slug, data.client_name, data.description,
-        data.status, data.currency, data.headline, data.hero_subtext, data.cta_label,
-        data.thank_you_message, data.landing_page_url, data.landing_link_label,
+        data.status, data.currency, data.deal_value, data.headline, data.hero_subtext,
+        data.cta_label, data.thank_you_message, data.landing_page_url, data.landing_link_label,
         data.requires_appointment, data.requires_consent, data.consent_text,
         data.terms_url, data.notify_emails, JSON.stringify(data.custom_fields),
       ]
     );
+
+    // The campaign's currency is the only currency. Keep the ranks in step so
+    // nothing can be read as disagreeing with it.
+    if (after.currency !== before.currency) {
+      await db.query('update commission_profiles set currency = $2 where campaign_id = $1', [before.id, after.currency]);
+    }
 
     await audit.logDiff({
       tenantId: req.tenant.id, req,
@@ -339,7 +369,8 @@ router.post('/campaigns/:id', async (req, res, next) => {
       entityId: before.id,
       summary: `Updated campaign "${after.name}"`,
       before, after,
-    }, ['name', 'slug', 'status', 'landing_page_url', 'landing_link_label', 'requires_appointment', 'requires_consent', 'currency']);
+    }, ['name', 'slug', 'status', 'landing_page_url', 'landing_link_label',
+      'requires_appointment', 'requires_consent', 'currency', 'deal_value']);
 
     req.flash('success', 'Campaign saved.');
     return res.redirect(`/admin/campaigns/${before.id}`);
@@ -397,10 +428,110 @@ router.post('/campaigns/:id/reminders', async (req, res, next) => {
 });
 
 // ===========================================================================
+// Products — what a campaign sells
+//
+// The rank sets the rate; the product sets the value. Keeping them apart is
+// what lets one campaign carry a Starter, a Pro and an Enterprise without
+// needing three ranks that differ only in the number they multiply.
+// ===========================================================================
+
+router.post('/campaigns/:id/products', async (req, res, next) => {
+  try {
+    const campaign = await db.one('select * from campaigns where id = $1 and tenant_id = $2', [req.params.id, req.tenant.id]);
+    if (!campaign) return next();
+
+    const data = products.readBody(req.body, util);
+    if (!data.name) {
+      req.flash('error', 'Give the product a name.');
+      return res.redirect(`/admin/campaigns/${campaign.id}#products`);
+    }
+
+    const created = await db.one(
+      `insert into campaign_products (tenant_id, campaign_id, name, code, description, value, sort_order, active)
+       values ($1,$2,$3,$4,$5,$6,$7,true)
+       returning *`,
+      [req.tenant.id, campaign.id, data.name, data.code, data.description, data.value, data.sort_order]
+    );
+
+    await audit.log({
+      tenantId: req.tenant.id, req,
+      action: 'product.created',
+      entityType: 'campaign_product',
+      entityId: created.id,
+      summary: `Added product "${created.name}" at ${util.money(created.value, campaign.currency)} to ${campaign.name}`,
+      after: { name: created.name, value: created.value },
+    });
+
+    req.flash('success', `"${created.name}" added.`);
+    return res.redirect(`/admin/campaigns/${campaign.id}#products`);
+  } catch (err) {
+    if (err.code === '23505') {
+      req.flash('error', 'A product with that name already exists on this campaign.');
+      return res.redirect(`/admin/campaigns/${req.params.id}#products`);
+    }
+    return next(err);
+  }
+});
+
+router.post('/products/:id', async (req, res, next) => {
+  try {
+    const before = await db.one(
+      `select p.*, c.name as campaign_name, c.currency
+         from campaign_products p join campaigns c on c.id = p.campaign_id
+        where p.id = $1 and p.tenant_id = $2`,
+      [req.params.id, req.tenant.id]
+    );
+    if (!before) return next();
+
+    const data = products.readBody(req.body, util);
+    if (!data.name) {
+      req.flash('error', 'The product needs a name.');
+      return res.redirect(`/admin/campaigns/${before.campaign_id}#products`);
+    }
+
+    const after = await db.one(
+      `update campaign_products
+          set name=$2, code=$3, description=$4, value=$5, sort_order=$6, active=$7, updated_at=now()
+        where id=$1 returning *`,
+      [before.id, data.name, data.code, data.description, data.value, data.sort_order, data.active]
+    );
+
+    await audit.logDiff({
+      tenantId: req.tenant.id, req,
+      action: 'product.updated',
+      entityType: 'campaign_product',
+      entityId: before.id,
+      summary: `Updated product "${after.name}" on ${before.campaign_name}`,
+      before, after,
+    }, ['name', 'code', 'value', 'sort_order', 'active']);
+
+    // Same rule as ranks, and worth saying out loud for the same reason: the
+    // value is copied onto a lead when it closes, so repricing here cannot
+    // reprice a deal that is already done.
+    req.flash('success', 'Product saved. Deals already closed keep the price they closed at.');
+    return res.redirect(`/admin/campaigns/${before.campaign_id}#products`);
+  } catch (err) {
+    if (err.code === '23505') {
+      req.flash('error', 'A product with that name already exists on this campaign.');
+      return next();
+    }
+    return next(err);
+  }
+});
+
+// ===========================================================================
 // Commission profiles (ranks)
 // ===========================================================================
 
 function readProfileBody(body) {
+  const autoPromote = util.bool(body.auto_promote);
+  const afterDeals = util.text(body.promote_after_deals)
+    ? Math.max(1, util.num(body.promote_after_deals, 1))
+    : null;
+  const afterAmount = util.text(body.promote_after_amount)
+    ? Math.max(0.01, util.num(body.promote_after_amount, 0))
+    : null;
+
   return {
     name: util.text(body.name, 80),
     description: util.text(body.description, 500),
@@ -411,11 +542,21 @@ function readProfileBody(body) {
     recurring_value: util.num(body.recurring_value, 0),
     recurring_months: util.text(body.recurring_months) ? Math.max(1, util.num(body.recurring_months, 1)) : null,
     payout_day: Math.min(28, Math.max(1, util.num(body.payout_day, 15))),
-    deal_value: util.num(body.deal_value, 0),
-    currency: util.text(body.currency, 8) || 'USD',
+    // Blank means inherit the campaign's deal value. Deliberately not zero:
+    // a rank that overrides the campaign with 0 earns nothing on percentages,
+    // and that should require typing a 0, not leaving a box empty.
+    deal_value: util.text(body.deal_value) === '' || body.deal_value === undefined
+      ? null
+      : util.num(body.deal_value, 0),
     rank_order: util.num(body.rank_order, 0),
     is_default: util.bool(body.is_default),
     status: body.status === 'archived' ? 'archived' : 'active',
+    // A rank that promotes automatically but names no condition would promote
+    // everyone the first time the job ran. The database refuses to store one,
+    // so switch the flag off rather than hand it a row it will reject.
+    auto_promote: autoPromote && (afterDeals !== null || afterAmount !== null),
+    promote_after_deals: afterDeals,
+    promote_after_amount: afterAmount,
   };
 }
 
@@ -438,14 +579,19 @@ router.post('/campaigns/:id/profiles', async (req, res, next) => {
       `insert into commission_profiles
         (tenant_id, campaign_id, name, description, is_default, rank_order,
          initial_type, initial_value, recurring_enabled, recurring_type,
-         recurring_value, recurring_months, payout_day, deal_value, currency, status)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         recurring_value, recurring_months, payout_day, deal_value, currency, status,
+         auto_promote, promote_after_deals, promote_after_amount)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        returning *`,
       [
         req.tenant.id, campaign.id, data.name, data.description, data.is_default,
         data.rank_order, data.initial_type, data.initial_value, data.recurring_enabled,
         data.recurring_type, data.recurring_value, data.recurring_months,
-        data.payout_day, data.deal_value, data.currency, data.status,
+        // Currency follows the campaign — it is not a rank-level choice. Two
+        // ranks disagreeing about the currency of one campaign made the totals,
+        // which sum without grouping, silently wrong.
+        data.payout_day, data.deal_value, campaign.currency, data.status,
+        data.auto_promote, data.promote_after_deals, data.promote_after_amount,
       ]
     );
 
@@ -498,13 +644,15 @@ router.post('/profiles/:id', async (req, res, next) => {
       `update commission_profiles set
          name=$2, description=$3, is_default=$4, rank_order=$5, initial_type=$6,
          initial_value=$7, recurring_enabled=$8, recurring_type=$9, recurring_value=$10,
-         recurring_months=$11, payout_day=$12, deal_value=$13, currency=$14, status=$15
+         recurring_months=$11, payout_day=$12, deal_value=$13, status=$14,
+         auto_promote=$15, promote_after_deals=$16, promote_after_amount=$17,
+         currency = (select currency from campaigns where id = commission_profiles.campaign_id)
        where id=$1 returning *`,
       [
         before.id, data.name, data.description, data.is_default, data.rank_order,
         data.initial_type, data.initial_value, data.recurring_enabled, data.recurring_type,
         data.recurring_value, data.recurring_months, data.payout_day, data.deal_value,
-        data.currency, data.status,
+        data.status, data.auto_promote, data.promote_after_deals, data.promote_after_amount,
       ]
     );
 
@@ -518,10 +666,15 @@ router.post('/profiles/:id', async (req, res, next) => {
     }, [
       'name', 'is_default', 'initial_type', 'initial_value', 'recurring_enabled',
       'recurring_type', 'recurring_value', 'recurring_months', 'payout_day',
-      'deal_value', 'currency', 'status',
+      'deal_value', 'status', 'auto_promote', 'promote_after_deals', 'promote_after_amount',
     ]);
 
-    req.flash('success', 'Rank updated. It applies to commissions created from now on.');
+    // Worth saying out loud every time, because the alternative behaviour is
+    // what most systems do and what people expect: this edit reaches nothing
+    // that already exists. Leads already referred keep the terms they came in
+    // under, and running recurring accounts keep theirs.
+    req.flash('success', `Rank updated. It applies to leads referred from now on — `
+      + 'anything already in flight keeps the terms it came in under.');
     return res.redirect(`/admin/campaigns/${before.campaign_id}#ranks`);
   } catch (err) {
     next(err);
@@ -592,8 +745,19 @@ router.post('/members/:id/profile', async (req, res, next) => {
       }
     }
 
-    await db.query('update campaign_members set commission_profile_id = $2 where id = $1',
-      [member.id, newProfile ? newProfile.id : null]);
+    // When the change takes effect, as distinct from when you clicked. "Senior
+    // as of 1 August" is an ordinary thing to want to say, and the audit log
+    // alone cannot express it — it only knows the moment of the click.
+    const effectiveFrom = util.text(req.body.rank_effective_from, 10) || null;
+
+    await db.query(
+      `update campaign_members
+          set commission_profile_id = $2,
+              rank_effective_from = coalesce($3::date, current_date),
+              rank_set_by = 'admin'
+        where id = $1`,
+      [member.id, newProfile ? newProfile.id : null, effectiveFrom]
+    );
 
     await audit.log({
       tenantId: req.tenant.id, req,
@@ -602,10 +766,17 @@ router.post('/members/:id/profile', async (req, res, next) => {
       entityId: member.id,
       summary: `${member.full_name || member.email} moved to "${newProfile ? newProfile.name : 'no rank'}" on ${member.campaign_name}`,
       before: { commission_profile: member.current_profile_name || null },
-      after: { commission_profile: newProfile ? newProfile.name : null },
+      after: {
+        commission_profile: newProfile ? newProfile.name : null,
+        effective_from: effectiveFrom || 'today',
+      },
     });
 
-    req.flash('success', 'Commission rank updated.');
+    // Say what this does and does not touch. The natural assumption is that
+    // moving someone to Senior makes their open leads pay Senior rates; it does
+    // not, and finding that out from a payslip is the wrong way to learn it.
+    req.flash('success', 'Commission rank updated. It applies to leads referred from now on — '
+      + 'leads already in hand keep the rank they were referred under.');
     return res.redirect(req.get('referer') || `/admin/campaigns/${member.campaign_id}`);
   } catch (err) {
     next(err);

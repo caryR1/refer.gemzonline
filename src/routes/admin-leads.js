@@ -12,6 +12,7 @@ const audit = require('../lib/audit');
 const notify = require('../lib/notify');
 const relations = require('../lib/relations');
 const commissions = require('../lib/commissions');
+const products = require('../lib/products');
 
 const router = express.Router();
 
@@ -138,7 +139,15 @@ router.get('/leads/:id', async (req, res, next) => {
         db.all("select id, name, slug, channel from notification_templates where tenant_id = $1 and active order by channel, name", [req.tenant.id]),
       ]);
 
-    const preview = profile ? commissions.calculate(profile, 'initial') : null;
+    // Preview what closing would pay, using the same path the close itself
+    // takes — the lead's own snapshot, with the product layered in. Showing a
+    // number here that a real close would not produce is worse than showing
+    // nothing, so this deliberately reuses termsForLead rather than
+    // recalculating from the live rank.
+    const terms = await commissions.termsForLead(lead);
+    const preview = terms ? commissions.calculate(terms, 'initial') : null;
+    const productList = await products.list(lead.campaign_id);
+    const basis = products.basisFor(lead, terms);
 
     res.render('admin/lead-detail', {
       title: `${lead.first_name} ${lead.last_name}`.trim() || lead.email,
@@ -150,8 +159,12 @@ router.get('/leads/:id', async (req, res, next) => {
       relationOptions,
       commissionRows,
       profile,
+      terms,
       preview,
+      basis,
+      productList,
       emailTemplates,
+      reopenStatuses: util.LEAD_STATUSES.filter((s) => !s.value.startsWith('closed')),
     });
   } catch (err) {
     next(err);
@@ -170,16 +183,55 @@ router.post('/leads/:id/status', async (req, res, next) => {
     }
     if (status === lead.status) return res.redirect(`/admin/leads/${lead.id}`);
 
+    // Moving out of "closed / won" is not a status change, it is an undo of a
+    // payment. Sending it through this route would leave the commission behind
+    // and wipe the account dates, so it has a route of its own that asks why
+    // and deals with the money.
+    if (lead.status === 'closed_won') {
+      req.flash('error', 'This lead is closed as won and has a commission against it. Use Reopen, which handles the commission properly.');
+      return res.redirect(`/admin/leads/${lead.id}#reopen`);
+    }
+
     const closing = status === 'closed_won' || status === 'closed_lost';
+
+    // Which product was actually sold. Only asked for on a winning close, and
+    // only when the campaign has more than the one thing to sell.
+    let product = null;
+    if (status === 'closed_won') {
+      const chosen = util.text(req.body.product_id);
+      if (chosen) {
+        product = await products.forCampaign(chosen, lead.campaign_id);
+        if (!product) {
+          req.flash('error', 'That product does not belong to this campaign.');
+          return res.redirect(`/admin/leads/${lead.id}`);
+        }
+      } else {
+        const available = await products.list(lead.campaign_id);
+        if (available.length) {
+          req.flash('error', 'Choose which product this deal was for — it decides what the commission is calculated from.');
+          return res.redirect(`/admin/leads/${lead.id}`);
+        }
+      }
+    }
 
     const updated = await db.one(
       `update leads set status = $2,
               closed_at = case when $3 then now() else null end,
               account_active = case when $2 = 'closed_won' then account_active else false end,
               account_started_on = case when $2 = 'closed_won' then account_started_on else null end,
-              last_contacted_at = case when $2 = 'contacted' then now() else last_contacted_at end
+              last_contacted_at = case when $2 = 'contacted' then now() else last_contacted_at end,
+              -- Copied, not just referenced: repricing a product next quarter
+              -- must not reprice a deal that closed this one.
+              product_id    = coalesce($4, product_id),
+              product_name  = coalesce($5, product_name),
+              product_value = coalesce($6, product_value)
         where id = $1 returning *`,
-      [lead.id, status, closing]
+      [
+        lead.id, status, closing,
+        product ? product.id : null,
+        product ? product.name : null,
+        product ? product.value : null,
+      ]
     );
 
     await db.query(
@@ -217,7 +269,8 @@ router.post('/leads/:id/status', async (req, res, next) => {
             amount: result.commission.amount,
             rate: result.commission.rate_label,
             basis: result.commission.basis_amount,
-            profile: result.profile.name,
+            rank: result.terms.profile_name || null,
+            product: updated.product_name || null,
           },
         });
         req.flash('success', `Closed as won. A ${util.money(result.commission.amount, result.commission.currency)} commission is pending approval.`);
@@ -241,6 +294,105 @@ router.post('/leads/:id/status', async (req, res, next) => {
     return res.redirect(`/admin/leads/${lead.id}`);
   } catch (err) {
     next(err);
+  }
+});
+
+/**
+ * Reopen a lead that was closed by mistake.
+ *
+ * Its own action rather than a value in the status dropdown, because closing is
+ * the click that creates money and undoing it has to deal with the money. The
+ * dropdown version left the commission sitting there and wiped the account
+ * dates on the way past — so a mis-click cost you the account start date
+ * permanently and left a commission attached to a lead that was no longer won.
+ *
+ * A reason is required. Not bureaucracy: this is the one action in the system
+ * that reverses a payment, and six months later "why is there a minus entry on
+ * my statement" is a question somebody will ask.
+ */
+router.post('/leads/:id/reopen', async (req, res, next) => {
+  try {
+    const lead = await db.one('select * from leads where id = $1 and tenant_id = $2', [req.params.id, req.tenant.id]);
+    if (!lead) return next();
+
+    if (lead.status !== 'closed_won' && lead.status !== 'closed_lost') {
+      req.flash('error', 'That lead is not closed.');
+      return res.redirect(`/admin/leads/${lead.id}`);
+    }
+
+    const reason = util.text(req.body.reason, 300);
+    if (!reason) {
+      req.flash('error', 'Say why it is being reopened — it goes on the record beside any commission this reverses.');
+      return res.redirect(`/admin/leads/${lead.id}#reopen`);
+    }
+
+    const backTo = util.LEAD_STATUSES.some((s) => s.value === req.body.status && !s.value.startsWith('closed'))
+      ? req.body.status
+      : 'appointment_set';
+
+    const money = await commissions.unwindForLead(req.tenant.id, lead.id, {
+      reason,
+      actorName: req.user.full_name || req.user.email,
+    });
+
+    const updated = await db.one(
+      `update leads set
+         status = $2,
+         closed_at = null,
+         account_active = false,
+         -- Remember the start date rather than discarding it. If this reopen is
+         -- itself corrected in a minute, the original date is still here.
+         prior_account_started_on = coalesce(account_started_on, prior_account_started_on),
+         account_started_on = null,
+         reopened_at = now(),
+         reopened_reason = $3
+       where id = $1 returning *`,
+      [lead.id, backTo, reason]
+    );
+
+    const parts = [];
+    if (money.voided.length) parts.push(`${money.voided.length} unpaid commission${money.voided.length === 1 ? '' : 's'} voided`);
+    if (money.reversed.length) {
+      const total = money.reversed.reduce((sum, r) => sum + Math.abs(Number(r.amount) || 0), 0);
+      parts.push(`${util.money(total, money.reversed[0].currency)} of paid commission reversed`);
+    }
+
+    await db.query(
+      `insert into lead_notes (tenant_id, lead_id, author_id, author_name, kind, body)
+       values ($1,$2,$3,$4,'status_change',$5)`,
+      [
+        req.tenant.id, lead.id, req.user.id, req.user.full_name || req.user.email,
+        `Reopened from ${util.statusMeta(lead.status).label} to ${util.statusMeta(backTo).label}. `
+        + `Reason: ${reason}${parts.length ? `. ${parts.join('; ')}.` : '.'}`,
+      ]
+    );
+
+    await audit.log({
+      tenantId: req.tenant.id, req,
+      action: 'lead.reopened',
+      entityType: 'lead',
+      entityId: lead.id,
+      summary: `${lead.email} reopened from ${lead.status}${parts.length ? ` — ${parts.join('; ')}` : ''}`,
+      before: {
+        status: lead.status,
+        account_started_on: lead.account_started_on,
+        account_active: lead.account_active,
+      },
+      after: {
+        status: backTo,
+        reason,
+        voided: money.voided.length,
+        reversed: money.reversed.length,
+      },
+    });
+
+    req.flash('success', parts.length
+      ? `Reopened. ${parts.join('; ')}. Both sides stay on the record.`
+      : 'Reopened. There was no commission to undo.');
+
+    return res.redirect(`/admin/leads/${updated.id}`);
+  } catch (err) {
+    return next(err);
   }
 });
 

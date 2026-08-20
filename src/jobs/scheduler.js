@@ -8,6 +8,7 @@
  *   • commission statements   — monthly, to admin and each agent
  *   • recurring-account review— monthly, admin only
  *   • stale lead alert        — weekly
+ *   • rank promotions         — nightly
  *
  * Every run is written to `job_runs` so an operator can see what happened
  * without reading server logs.
@@ -24,6 +25,8 @@ const notify = require('../lib/notify');
 const mailer = require('../lib/mailer');
 const templates = require('../lib/templates');
 const commissions = require('../lib/commissions');
+const ranks = require('../lib/ranks');
+const audit = require('../lib/audit');
 const tenant = require('../lib/tenant');
 
 const tasks = [];
@@ -452,6 +455,120 @@ async function runStaleLeads() {
 }
 
 // ---------------------------------------------------------------------------
+// Promotions
+// ---------------------------------------------------------------------------
+
+/**
+ * Move agents up to any rank they have earned.
+ *
+ * Only ever upward, and only to ranks that declare what earns them. A demotion
+ * is a conversation, not a cron job, so nothing here can lower anyone.
+ *
+ * Promotions take effect from today forward. Leads already referred keep the
+ * rank they came in under — that is the whole point of the snapshot — so this
+ * changes what the agent earns on future work and nothing else. Which is also
+ * why it is safe to run nightly: a promotion that fires a day early costs
+ * nobody anything retroactively.
+ */
+async function runPromotions() {
+  const t = await tenant.current();
+
+  // Only campaigns that actually have a rank to be promoted into.
+  const campaigns = await db.all(
+    `select distinct c.id, c.name, c.currency, c.deal_value
+       from campaigns c
+       join commission_profiles cp on cp.campaign_id = c.id
+      where c.tenant_id = $1 and c.status = 'active'
+        and cp.status = 'active' and cp.auto_promote`,
+    [t.id]
+  );
+
+  const promoted = [];
+  let considered = 0;
+
+  for (const campaign of campaigns) {
+    const campaignRanks = await db.all(
+      "select * from commission_profiles where campaign_id = $1 and status = 'active' order by rank_order",
+      [campaign.id]
+    );
+
+    const members = await db.all(
+      `select cm.*, p.full_name, p.email, cp.name as rank_name, cp.rank_order
+         from campaign_members cm
+         join profiles p on p.id = cm.agent_id
+         left join commission_profiles cp on cp.id = cm.commission_profile_id
+        where cm.campaign_id = $1 and cm.status = 'active' and p.status = 'active'`,
+      [campaign.id]
+    );
+
+    for (const member of members) {
+      considered += 1;
+
+      const stats = await commissions.agentCampaignStats(t.id, member.agent_id, campaign.id);
+      const current = member.commission_profile_id
+        ? { rank_order: member.rank_order, name: member.rank_name }
+        : null;
+
+      const target = ranks.nextRankFor(campaignRanks, current, stats);
+      if (!target) continue;
+
+      await db.query(
+        `update campaign_members
+            set commission_profile_id = $2, rank_effective_from = current_date, rank_set_by = 'auto'
+          where id = $1`,
+        [member.id, target.id]
+      );
+
+      await audit.log({
+        tenantId: t.id,
+        actorType: 'system',
+        actorName: 'Scheduler',
+        action: 'member.profile_changed',
+        entityType: 'campaign_member',
+        entityId: member.id,
+        summary: `${member.full_name || member.email} reached "${target.name}" on ${campaign.name}`,
+        before: { commission_profile: member.rank_name || null },
+        after: {
+          commission_profile: target.name,
+          earned_by: ranks.requirementLabel(target, (n) => util.money(n, campaign.currency)),
+          closed_deals: stats.closedDeals,
+          earned: stats.earned,
+        },
+      });
+
+      const agent = await db.one('select * from profiles where id = $1', [member.agent_id]);
+      await notify.fire('rank_promoted', {
+        tenantId: t.id,
+        agent,
+        campaign,
+        extra: {
+          rank: {
+            name: target.name,
+            previous: member.rank_name || 'no rank',
+            description: target.description || '',
+            initial: util.rateLabel(target.initial_type, target.initial_value, campaign.currency),
+            requirement: ranks.requirementLabel(target, (n) => util.money(n, campaign.currency)),
+            closed_deals: String(stats.closedDeals),
+            earned: util.money(stats.earned, campaign.currency),
+          },
+        },
+      }).catch((e) => console.error('[jobs] rank_promoted notify failed:', e.message));
+
+      promoted.push({
+        agent: member.full_name || member.email,
+        campaign: campaign.name,
+        from: member.rank_name || null,
+        to: target.name,
+      });
+    }
+  }
+
+  const detail = { considered, promoted: promoted.length, moves: promoted };
+  await recordRun(t.id, 'promotions', 'ok', detail);
+  return detail;
+}
+
+// ---------------------------------------------------------------------------
 // Wiring
 // ---------------------------------------------------------------------------
 
@@ -478,6 +595,10 @@ function start() {
   // Weekly nudge, Monday morning.
   schedule(`0 ${hour} * * 1`, 'stale_leads', runStaleLeads);
 
+  // Promotions, nightly. Cheap, and a rank earned on Tuesday should not have to
+  // wait until the first of the month to arrive.
+  schedule(`15 ${hour} * * *`, 'promotions', runPromotions);
+
   console.log(`  Scheduler running (${zone}): reminders every ${every}m; monthly jobs on day ${day} at ${String(hour).padStart(2, '0')}:00.`);
 }
 
@@ -488,5 +609,6 @@ function stop() {
 
 module.exports = {
   start, stop,
-  runReminders, runMonthlyAccrual, runMonthlyStatements, runAccountReview, runStaleLeads,
+  runReminders, runMonthlyAccrual, runMonthlyStatements, runAccountReview,
+  runStaleLeads, runPromotions,
 };

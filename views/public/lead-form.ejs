@@ -53,6 +53,23 @@
         </div>
       </div>
 
+      <% if (productList && productList.length) { %>
+        <div class="field">
+          <label for="product_interest_id">
+            What are you interested in? <span class="muted small">(optional)</span>
+          </label>
+          <select id="product_interest_id" name="product_interest_id">
+            <option value="">Not sure yet — help me choose</option>
+            <% productList.forEach(function (pr) { %>
+              <option value="<%= pr.id %>" <%= form.product_interest_id === pr.id ? 'selected' : '' %>>
+                <%= pr.name %><%= pr.description ? ' — ' + pr.description : '' %>
+              </option>
+            <% }); %>
+          </select>
+          <div class="help">Nothing is decided here. It just helps us have a more useful conversation.</div>
+        </div>
+      <% } %>
+
       <fieldset>
         <legend>Where are you? <span class="muted small">(optional)</span></legend>
         <p class="help mt-0">Helps us reach the right person and, where a visit is involved, get to you.</p>

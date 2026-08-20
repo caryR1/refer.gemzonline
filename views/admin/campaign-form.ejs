@@ -43,10 +43,20 @@
         </div>
       </div>
 
-      <div class="field-row">
+      <div class="field-row three">
+        <div class="field">
+          <label for="deal_value">Deal value</label>
+          <input type="number" step="0.01" min="0" id="deal_value" name="deal_value"
+                 value="<%= campaign.deal_value || 0 %>">
+          <div class="help">
+            What one deal here is worth. Every rank calculates its percentage from this
+            unless it deliberately sets its own.
+          </div>
+        </div>
         <div class="field">
           <label for="currency">Currency</label>
           <input type="text" id="currency" name="currency" maxlength="8" value="<%= campaign.currency || 'USD' %>">
+          <div class="help">Set once here. Ranks follow it.</div>
         </div>
         <div class="field">
           <label for="notify_emails">Extra notification recipients</label>

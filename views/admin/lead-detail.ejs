@@ -139,24 +139,68 @@
     <div class="card">
       <div class="card-head"><h2>Status</h2></div>
       <div class="card-body">
-        <form method="post" action="/admin/leads/<%= lead.id %>/status" class="flex wrap"
-              data-confirm="Change the status? Closing as won creates a commission.">
-          <select name="status" style="max-width:220px">
-            <% LEAD_STATUSES.forEach(function (st) { %>
-              <option value="<%= st.value %>" <%= lead.status === st.value ? 'selected' : '' %>><%= st.label %></option>
-            <% }); %>
-          </select>
-          <button class="btn" type="submit">Update</button>
-        </form>
+        <% var isClosed = lead.status === 'closed_won' || lead.status === 'closed_lost'; %>
 
-        <% if (profile) { %>
+        <% if (lead.status === 'closed_won') { %>
+          <p class="small muted mt-0">
+            Closed as won<%= lead.product_name ? ' on ' + lead.product_name : '' %><%= lead.closed_at ? ' · ' + tz.fmtShort(lead.closed_at, user.timezone) : '' %>.
+            To undo it, use Reopen below — it deals with the commission as well as the status.
+          </p>
+        <% } else { %>
+          <form method="post" action="/admin/leads/<%= lead.id %>/status">
+            <div class="field">
+              <label for="status">Status</label>
+              <select id="status" name="status">
+                <% LEAD_STATUSES.forEach(function (st) { %>
+                  <option value="<%= st.value %>" <%= lead.status === st.value ? 'selected' : '' %>><%= st.label %></option>
+                <% }); %>
+              </select>
+            </div>
+
+            <% if (productList.length) { %>
+              <div class="field">
+                <label for="product_id">Which product was this deal for?</label>
+                <select id="product_id" name="product_id">
+                  <option value="">Choose one…</option>
+                  <% productList.forEach(function (pr) { %>
+                    <option value="<%= pr.id %>"
+                      <%= (lead.product_id === pr.id || (!lead.product_id && lead.product_interest_id === pr.id)) ? 'selected' : '' %>>
+                      <%= pr.name %> — <%= money(pr.value, campaign.currency) %>
+                    </option>
+                  <% }); %>
+                </select>
+                <div class="help">
+                  Required when closing as won — this is what the commission calculates from.
+                  <% if (lead.product_interest_id) { %>
+                    Pre-selected from what the prospect said they were interested in; change it if they bought something else.
+                  <% } %>
+                </div>
+              </div>
+            <% } %>
+
+            <button class="btn" type="submit"
+                    data-confirm="Update the status? Closing as won creates a commission.">Update</button>
+          </form>
+        <% } %>
+
+        <% if (terms) { %>
           <div class="alert info mt-2" style="margin-bottom:0">
             <span>i</span>
             <div>
-              Closing as won pays <strong><%= preview ? money(preview.amount, preview.currency) : '—' %></strong>
+              <%= isClosed ? 'Paid' : 'Closing as won pays' %>
+              <strong><%= preview ? money(preview.amount, preview.currency) : '—' %></strong>
               to <%= agent ? (agent.full_name || agent.email) : 'nobody' %>
-              — <%= profile.name %> rank, <%= util.rateLabel(profile.initial_type, profile.initial_value, profile.currency) %>
-              <% if (profile.initial_type === 'percentage') { %> of <%= money(profile.deal_value, profile.currency) %><% } %>.
+              — <%= terms.profile_name || 'rank' %>,
+              <%= util.rateLabel(terms.initial_type, terms.initial_value, terms.currency) %><% if (terms.initial_type === 'percentage') { %>
+                of <%= money(basis.amount, terms.currency) %><% } %>.
+              <div class="small muted">
+                Basis: <%= basis.label %>.
+                <% if (ranks.isSnapshotted(lead)) { %>
+                  Rank fixed at referral, so later changes to it do not affect this lead.
+                <% } else { %>
+                  This lead predates rank snapshots, so it reads the agent's current rank.
+                <% } %>
+              </div>
             </div>
           </div>
         <% } else { %>
@@ -167,6 +211,61 @@
         <% } %>
       </div>
     </div>
+
+    <% if (isClosed) { %>
+      <div class="card" id="reopen">
+        <div class="card-head">
+          <div>
+            <h2>Reopen</h2>
+            <p class="sub">Closed by mistake, or the deal fell through after closing.</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <% var live = commissionRows.filter(function (c) { return c.status !== 'void' && !c.reverses_id; }); %>
+          <% var paid = live.filter(function (c) { return c.status === 'paid'; }); %>
+
+          <% if (paid.length) { %>
+            <div class="alert warn">
+              <span>!</span>
+              <div>
+                <strong>This lead has commission already marked paid.</strong>
+                Reopening will not delete it — the money did leave the account. A matching
+                negative entry is posted beside it so the totals come back to correct and
+                the statement reads as paid, then reversed.
+              </div>
+            </div>
+          <% } else if (live.length) { %>
+            <p class="small muted mt-0">
+              <%= live.length %> unpaid commission<%= live.length === 1 ? '' : 's' %> against this lead
+              will be voided. Nothing has been paid out, so nothing needs reversing.
+            </p>
+          <% } else { %>
+            <p class="small muted mt-0">There is no commission against this lead, so only the status changes.</p>
+          <% } %>
+
+          <form method="post" action="/admin/leads/<%= lead.id %>/reopen">
+            <div class="field">
+              <label for="reopen_status">Put it back to</label>
+              <select id="reopen_status" name="status">
+                <% reopenStatuses.forEach(function (st) { %>
+                  <option value="<%= st.value %>" <%= st.value === 'appointment_set' ? 'selected' : '' %>><%= st.label %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="field">
+              <label for="reason">Why?</label>
+              <input type="text" id="reason" name="reason" required maxlength="300"
+                     placeholder="Closed the wrong lead / customer cancelled after signing">
+              <div class="help">Goes on the lead, in the audit log, and beside any commission this reverses.</div>
+            </div>
+            <button class="btn subtle-danger" type="submit"
+                    data-confirm="Reopen this lead<%= paid.length ? ' and reverse the paid commission' : '' %>?">
+              Reopen lead
+            </button>
+          </form>
+        </div>
+      </div>
+    <% } %>
 
     <div class="card">
       <div class="card-head"><h2>Recurring account</h2></div>

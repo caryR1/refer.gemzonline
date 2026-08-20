@@ -19,6 +19,8 @@ const tz = require('../lib/tz');
 const audit = require('../lib/audit');
 const notify = require('../lib/notify');
 const util = require('../lib/util');
+const ranks = require('../lib/ranks');
+const products = require('../lib/products');
 
 const router = express.Router();
 
@@ -155,6 +157,7 @@ router.get('/r/:slug/apply', async (req, res, next) => {
       agentName: resolved.agentName,
       slug: req.params.slug,
       timezones: tz.COMMON_TIMEZONES,
+      productList: await products.list(resolved.campaign.id),
       form: {},
       errors: [],
     });
@@ -187,8 +190,17 @@ router.post('/r/:slug/apply', formLimiter, async (req, res, next) => {
       postal_code: util.text(body.postal_code, 24),
       country: util.text(body.country, 80),
       timezone: tz.safeZone(body.timezone, config.staffTimezone),
+      product_interest_id: util.text(body.product_interest_id) || '',
     };
     const custom = readCustomFields(campaign, body);
+
+    // What they say they are interested in. Recorded because it is useful to the
+    // agent before the call, and deliberately never used to calculate anything —
+    // what someone ticks on a web form should not decide what an agent is paid.
+    // The admin confirms the real product at close.
+    const interest = util.text(body.product_interest_id)
+      ? await products.forCampaign(util.text(body.product_interest_id), campaign.id)
+      : null;
 
     const errors = [];
     if (!form.first_name) errors.push('Tell us your first name.');
@@ -206,9 +218,27 @@ router.post('/r/:slug/apply', formLimiter, async (req, res, next) => {
         agentName: resolved.agentName,
         slug: req.params.slug,
         timezones: tz.COMMON_TIMEZONES,
+        productList: await products.list(campaign.id),
         form: { ...form, ...Object.fromEntries(Object.entries(custom).map(([k, v]) => [`custom_${k}`, v])) },
         errors,
       });
+    }
+
+    // The rank at referral is the rank that pays.
+    //
+    // Take a snapshot now, while the work is being done, rather than looking it
+    // up when an admin gets round to closing. Otherwise a promotion silently
+    // re-prices every open lead upward and a demotion re-prices them down, and
+    // what someone earns depends on the timing of somebody else's click.
+    let rankStamp = null;
+    if (link && link.agent_id) {
+      const liveRank = await db.one(
+        `select cp.* from campaign_members cm
+           join commission_profiles cp on cp.id = cm.commission_profile_id
+          where cm.campaign_id = $1 and cm.agent_id = $2 and cm.status = 'active'`,
+        [campaign.id, link.agent_id]
+      );
+      if (liveRank) rankStamp = ranks.snapshot(liveRank, campaign);
     }
 
     const lead = await db.one(
@@ -217,9 +247,10 @@ router.post('/r/:slug/apply', formLimiter, async (req, res, next) => {
          referral_link_id, first_name, last_name, email, phone, company,
          address, address_line2, city, region, postal_code, country,
          timezone, custom, utm_source, utm_medium, utm_campaign,
-         landing_url, user_agent, ip_address)
+         landing_url, user_agent, ip_address,
+         commission_profile_id, terms, terms_captured_at, product_interest_id)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-               $19,$20,$21,$22,$23,$24,$25,$26)
+               $19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)
        returning *`,
       [
         req.tenant.id,
@@ -239,6 +270,10 @@ router.post('/r/:slug/apply', formLimiter, async (req, res, next) => {
         `${config.appUrl}/r/${req.params.slug}`,
         util.text(req.get('user-agent'), 400),
         req.ip,
+        rankStamp ? rankStamp.commission_profile_id : null,
+        rankStamp ? JSON.stringify(rankStamp) : null,
+        rankStamp ? new Date() : null,
+        interest ? interest.id : null,
       ]
     );
 

@@ -26,6 +26,8 @@ declare
   v_ok       boolean;
   v_amount   numeric;
   v_count    int;
+  v_product    uuid;
+  v_commission uuid;
 begin
   raise notice '--- setting up fixtures';
 
@@ -314,9 +316,182 @@ begin
   if v_count <> 1 then raise exception 'FAILED: the payout record did not persist'; end if;
   raise notice '   ok — method, holder, currency and ciphertext persist together';
 
+  -- =========================================================================
+  raise notice '21. a lead can only ever hold one live initial commission';
+  -- The old rule was (lead_id, kind, period), so closing in one month and
+  -- again in the next slipped through and paid twice.
+  insert into commissions (tenant_id, lead_id, agent_id, campaign_id, kind, amount, currency, period, status)
+    values (v_tenant, v_lead, v_agent, v_campaign, 'initial', 150, 'USD', date '2026-08-01', 'pending');
+  begin
+    insert into commissions (tenant_id, lead_id, agent_id, campaign_id, kind, amount, currency, period, status)
+      values (v_tenant, v_lead, v_agent, v_campaign, 'initial', 150, 'USD', date '2026-09-01', 'pending');
+    raise exception 'FAILED: a second initial commission was created for the same lead';
+  exception when unique_violation then
+    raise notice '   ok — a different month is not a second chance to be paid';
+  end;
+
+  -- =========================================================================
+  raise notice '22. a voided commission can be redone';
+  update commissions set status = 'void'
+   where lead_id = v_lead and kind = 'initial' and period = date '2026-08-01';
+  insert into commissions (tenant_id, lead_id, agent_id, campaign_id, kind, amount, currency, period, status)
+    values (v_tenant, v_lead, v_agent, v_campaign, 'initial', 200, 'USD', date '2026-09-01', 'pending');
+  select count(*) into v_count
+    from commissions where lead_id = v_lead and kind = 'initial' and status <> 'void';
+  if v_count <> 1 then raise exception 'expected exactly 1 live initial commission, found %', v_count; end if;
+  raise notice '   ok — voiding releases the slot, so a genuine mistake is fixable';
+
+  -- =========================================================================
+  raise notice '23. a lead carries the rank it was referred under';
+  update leads
+     set commission_profile_id = v_rank_std,
+         terms = '{"initial_type":"percentage","initial_value":10,"deal_value":1500,"currency":"USD","payout_day":15,"recurring_enabled":false}'::jsonb,
+         terms_captured_at = now()
+   where id = v_lead;
+  select count(*) into v_count
+    from leads
+   where id = v_lead
+     and commission_profile_id = v_rank_std
+     and (terms ->> 'initial_value')::numeric = 10;
+  if v_count <> 1 then
+    raise exception 'FAILED: the lead terms snapshot did not persist — has db/migrations/002 been applied?';
+  end if;
+  raise notice '   ok — the snapshot survives independently of the rank row';
+
+  -- =========================================================================
+  raise notice '24. a rank cannot promote automatically with no requirement';
+  begin
+    update commission_profiles
+       set auto_promote = true, promote_after_deals = null, promote_after_amount = null
+     where id = v_rank_snr;
+    raise exception 'FAILED: a rank was allowed to promote everyone unconditionally';
+  exception when check_violation then
+    raise notice '   ok — automatic promotion must say what earns it';
+  end;
+
+  -- =========================================================================
+  raise notice '25. promotion thresholds must be positive';
+  begin
+    update commission_profiles
+       set auto_promote = true, promote_after_deals = 0
+     where id = v_rank_snr;
+    raise exception 'FAILED: a threshold of zero deals was allowed';
+  exception when check_violation then
+    raise notice '   ok — zero closed deals is not a requirement';
+  end;
+
+  -- =========================================================================
+  raise notice '26. a valid promotion rule is accepted';
+  update commission_profiles
+     set auto_promote = true, promote_after_deals = 6, promote_after_amount = 5000
+   where id = v_rank_snr;
+  select count(*) into v_count
+    from commission_profiles where id = v_rank_snr and auto_promote and promote_after_deals = 6;
+  if v_count <> 1 then raise exception 'FAILED: the promotion rule did not persist'; end if;
+  raise notice '   ok — six closed deals and 5000 earned';
+
+  -- =========================================================================
+  raise notice '27. a rank may inherit the campaign deal value';
+  update commission_profiles set deal_value = null where id = v_rank_std;
+  select count(*) into v_count from commission_profiles where id = v_rank_std and deal_value is null;
+  if v_count <> 1 then
+    raise exception 'FAILED: deal_value is still NOT NULL — has db/migrations/002 been applied?';
+  end if;
+  raise notice '   ok — null means inherit, so ranks cannot drift apart';
+
+  -- =========================================================================
+  raise notice '28. a rank change records when it takes effect, and who made it';
+  update campaign_members
+     set commission_profile_id = v_rank_snr, rank_effective_from = date '2026-08-01', rank_set_by = 'admin'
+   where id = v_member;
+  begin
+    update campaign_members set rank_set_by = 'the vibes' where id = v_member;
+    raise exception 'FAILED: an unknown rank_set_by was allowed';
+  exception when check_violation then
+    raise notice '   ok — join, admin or auto, and an effective date of its own';
+  end;
+
+  -- =========================================================================
+  raise notice '29. a campaign can sell several products';
+  insert into campaign_products (tenant_id, campaign_id, name, value, sort_order)
+    values (v_tenant, v_campaign, 'Starter', 500, 1) returning id into v_product;
+  insert into campaign_products (tenant_id, campaign_id, name, value, sort_order)
+    values (v_tenant, v_campaign, 'Enterprise', 5000, 2);
+  select count(*) into v_count from campaign_products where campaign_id = v_campaign;
+  if v_count <> 2 then raise exception 'expected 2 products, found %', v_count; end if;
+  raise notice '   ok — two products at two prices on one campaign';
+
+  -- =========================================================================
+  raise notice '30. two products cannot share a name on one campaign';
+  begin
+    insert into campaign_products (tenant_id, campaign_id, name, value)
+      values (v_tenant, v_campaign, 'starter', 750);
+    raise exception 'FAILED: a duplicate product name was allowed';
+  exception when unique_violation then
+    raise notice '   ok — otherwise the close dropdown would show two identical rows';
+  end;
+
+  -- =========================================================================
+  raise notice '31. a lead records interest and purchase separately';
+  update leads
+     set product_interest_id = v_product,
+         product_id = v_product, product_name = 'Starter', product_value = 500
+   where id = v_lead;
+  select count(*) into v_count
+    from leads where id = v_lead and product_value = 500 and product_interest_id = v_product;
+  if v_count <> 1 then
+    raise exception 'FAILED: product columns missing — has db/migrations/003 been applied?';
+  end if;
+  -- Repricing the product must not reach a deal that already closed on it.
+  update campaign_products set value = 9999 where id = v_product;
+  select product_value into v_amount from leads where id = v_lead;
+  if v_amount <> 500 then
+    raise exception 'FAILED: repricing the product changed a closed deal (% instead of 500)', v_amount;
+  end if;
+  raise notice '   ok — the price is copied at close, not looked up later';
+
+  -- =========================================================================
+  raise notice '32. a reversal is negative, an ordinary commission is not';
+  begin
+    insert into commissions (tenant_id, lead_id, agent_id, campaign_id, kind, amount, currency, period, status)
+      values (v_tenant, v_lead, v_agent, v_campaign, 'recurring', -50, 'USD', date '2026-10-01', 'paid');
+    raise exception 'FAILED: a negative commission was allowed without being a reversal';
+  exception when check_violation then
+    raise notice '   ok — a negative amount has to say what it reverses';
+  end;
+
+  -- =========================================================================
+  raise notice '33. a paid commission can be reversed rather than erased';
+  select id into v_commission
+    from commissions
+   where lead_id = v_lead and kind = 'initial' and status <> 'void'
+   limit 1;
+  update commissions set status = 'paid' where id = v_commission;
+
+  -- Same lead, same kind, same period as the original — the uniqueness rules
+  -- must let this through, or a reversal would be impossible.
+  insert into commissions (tenant_id, lead_id, agent_id, campaign_id, kind, amount,
+                           currency, period, status, reverses_id, reversal_reason)
+    values (v_tenant, v_lead, v_agent, v_campaign, 'initial', -200, 'USD',
+            date '2026-09-01', 'paid', v_commission, 'Closed the wrong lead');
+
+  select coalesce(sum(amount), 0) into v_amount
+    from commissions where lead_id = v_lead and status <> 'void';
+  if v_amount <> 0 then
+    raise exception 'FAILED: the reversal did not net to zero (got %)', v_amount;
+  end if;
+  raise notice '   ok — both entries survive and the total returns to zero';
+
+  -- =========================================================================
+  raise notice '34. the original is still there to be read';
+  select count(*) into v_count
+    from commissions where id = v_commission and status = 'paid' and amount > 0;
+  if v_count <> 1 then raise exception 'FAILED: the original payment was altered'; end if;
+  raise notice '   ok — a payment that happened still says it happened';
+
   raise notice '';
   raise notice '=========================================';
-  raise notice 'All 20 schema checks passed.';
+  raise notice 'All 34 schema checks passed.';
   raise notice '=========================================';
 end $$;
 
