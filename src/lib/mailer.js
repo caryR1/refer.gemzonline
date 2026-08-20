@@ -56,6 +56,22 @@ async function send({ to, subject, html, text, cc, bcc, replyTo }) {
   if (!available()) {
     return { ok: false, error: 'SMTP is not configured.' };
   }
+
+  // Refuse to email links nobody can open.
+  //
+  // Almost every message this app sends carries a link built from APP_URL — the
+  // referral page, the acknowledgement, the prospect's "Edit appointment". If
+  // production is still carrying a development APP_URL, the send succeeds and
+  // the recipient gets a dead link, which cannot be recalled. Not sending is a
+  // problem you can fix in a minute; a wrong link in a prospect's inbox is not.
+  if (!config.linksUsable) {
+    return {
+      ok: false,
+      error: `APP_URL is "${config.appUrl}", which nobody outside this server can open. `
+        + 'Refusing to send mail with dead links in it — set APP_URL to the public address of the site.',
+    };
+  }
+
   try {
     const info = await getTransport().sendMail({
       from: { name: config.smtp.fromName, address: config.smtp.fromEmail },

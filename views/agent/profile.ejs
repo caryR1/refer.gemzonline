@@ -49,25 +49,223 @@
         </div>
       </div>
 
-      <fieldset>
-        <legend>How you would like to be paid</legend>
-        <div class="field">
-          <label for="payout_method">Method</label>
-          <input type="text" id="payout_method" name="payout_method"
-                 placeholder="Bank transfer, PayPal, cheque…" value="<%= user.payout_method || '' %>">
-        </div>
-        <div class="field mb-0">
-          <label for="payout_details">Details</label>
-          <textarea id="payout_details" name="payout_details"
-                    placeholder="Account name, number, branch — whatever we need to pay you"><%= user.payout_details || '' %></textarea>
-          <div class="help">Only administrators can see this.</div>
-        </div>
-      </fieldset>
-
       <button class="btn" type="submit">Save profile</button>
     </form>
   </div>
 </div>
+
+<%
+  // On a validation failure the values come back from the submission, not the
+  // database — nothing was saved, and re-showing the old values would quietly
+  // discard what was just typed.
+  var pd = (typeof payoutDraft !== 'undefined' && payoutDraft) ? payoutDraft : user;
+  var pv = payoutValues || {};
+  var chosen = pd.payout_method || '';
+%>
+
+<div class="card" id="payout">
+  <div class="card-head">
+    <div>
+      <h2>How should we pay you</h2>
+      <p class="sub">
+        The details we need to send your commission. Enter them exactly as your bank
+        or Wise account has them — a name that does not match is the most common
+        reason a transfer is returned.
+      </p>
+    </div>
+  </div>
+
+  <div class="card-body">
+    <% if (!payoutReady) { %>
+      <div class="alert warn mb-0">
+        <span>!</span>
+        <div>
+          <strong>Not available yet.</strong>
+          Bank details are stored encrypted, and this server has not been given its
+          encryption key. Ask an administrator to set <code>PAYOUT_ENCRYPTION_KEY</code>.
+        </div>
+      </div>
+    <% } else { %>
+
+      <% if (payoutErrors && payoutErrors.length) { %>
+        <div class="alert error">
+          <span>!</span>
+          <div><% payoutErrors.forEach(function (e) { %><div><%= e %></div><% }); %></div>
+        </div>
+      <% } %>
+
+      <% if (user.payout_secrets && !(payoutErrors || []).length) { %>
+        <div class="alert info">
+          <span>✓</span>
+          <div>
+            On file:
+            <strong><%= (payoutSchemes.find(function (s) { return s.code === user.payout_method; }) || {}).label || 'Payout details' %></strong>
+            <% if (user.payout_last4) { %> ending <strong>••••<%= user.payout_last4 %></strong><% } %>
+            <% if (user.payout_currency) { %> · paid in <%= user.payout_currency %><% } %>
+            <% if (user.payout_updated_at) { %>
+              <div class="small muted">Last changed <%= tz.fmtShort(user.payout_updated_at, user.timezone) %>.</div>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
+
+      <form method="post" action="/agent/profile/payout" id="payout-form">
+        <div class="field">
+          <label for="payout_method">How would you like to be paid?</label>
+          <select id="payout_method" name="payout_method" data-payout-scheme>
+            <option value="">Not set up yet</option>
+            <% payoutSchemes.forEach(function (s) { %>
+              <option value="<%= s.code %>" <%= chosen === s.code ? 'selected' : '' %>><%= s.label %></option>
+            <% }); %>
+          </select>
+          <div class="help">Choosing "Not set up yet" and saving removes anything already on file.</div>
+        </div>
+
+        <div data-payout-common style="<%= chosen ? '' : 'display:none' %>">
+          <div class="field-row">
+            <div class="field">
+              <label for="payout_holder_name">Account holder name</label>
+              <input type="text" id="payout_holder_name" name="payout_holder_name"
+                     autocomplete="name" placeholder="As it appears on the account"
+                     value="<%= pd.payout_holder_name || '' %>">
+            </div>
+            <div class="field">
+              <label for="payout_holder_type">Account type</label>
+              <select id="payout_holder_type" name="payout_holder_type">
+                <% holderTypes.forEach(function (t) { %>
+                  <option value="<%= t[0] %>" <%= (pd.payout_holder_type || 'personal') === t[0] ? 'selected' : '' %>><%= t[1] %></option>
+                <% }); %>
+              </select>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="payout_currency">Pay me in</label>
+              <select id="payout_currency" name="payout_currency">
+                <option value="">Choose a currency…</option>
+                <% currencies.forEach(function (c) { %>
+                  <option value="<%= c %>" <%= pd.payout_currency === c ? 'selected' : '' %>><%= c %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="field">
+              <label for="payout_bank_country">Country the account is held in</label>
+              <input type="text" id="payout_bank_country" name="payout_bank_country"
+                     list="payout-country-list" value="<%= pd.payout_bank_country || '' %>">
+            </div>
+          </div>
+        </div>
+
+        <% payoutSchemes.forEach(function (s) { %>
+          <fieldset data-payout-fields="<%= s.code %>" style="<%= chosen === s.code ? '' : 'display:none' %>">
+            <legend><%= s.label %></legend>
+            <% if (s.hint) { %><p class="help mt-0"><%= s.hint %></p><% } %>
+
+            <% s.fields.forEach(function (f) { var name = 'payout_' + f.key; var val = pv[f.key] || ''; %>
+              <div class="field">
+                <label for="<%= name %>">
+                  <%= f.label %><% if (!f.required) { %> <span class="muted small">(optional)</span><% } %>
+                </label>
+                <% if (f.type === 'select') { %>
+                  <select id="<%= name %>" name="<%= name %>">
+                    <option value="">Choose one…</option>
+                    <% (f.options || []).forEach(function (o) { %>
+                      <option value="<%= o[0] %>" <%= val === o[0] ? 'selected' : '' %>><%= o[1] %></option>
+                    <% }); %>
+                  </select>
+                <% } else if (f.type === 'textarea') { %>
+                  <textarea id="<%= name %>" name="<%= name %>" placeholder="<%= f.placeholder || '' %>"><%= val %></textarea>
+                <% } else { %>
+                  <input type="text" id="<%= name %>" name="<%= name %>" autocomplete="off"
+                         spellcheck="false" placeholder="<%= f.placeholder || '' %>" value="<%= val %>">
+                <% } %>
+                <% if (f.help) { %><div class="help"><%= f.help %></div><% } %>
+              </div>
+            <% }); %>
+          </fieldset>
+        <% }); %>
+
+        <fieldset data-payout-common style="<%= chosen ? '' : 'display:none' %>">
+          <legend>Your address</legend>
+          <p class="help mt-0">
+            Cross-border transfers are required to carry the recipient's address.
+            Use the address your bank has for you.
+          </p>
+
+          <div class="field">
+            <label for="payout_addr_line1">Street address</label>
+            <input type="text" id="payout_addr_line1" name="payout_addr_line1"
+                   autocomplete="address-line1" value="<%= pd.payout_addr_line1 || '' %>">
+          </div>
+          <div class="field">
+            <label for="payout_addr_line2">Apartment, suite, building <span class="muted small">(optional)</span></label>
+            <input type="text" id="payout_addr_line2" name="payout_addr_line2"
+                   autocomplete="address-line2" value="<%= pd.payout_addr_line2 || '' %>">
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="payout_addr_city">City or town</label>
+              <input type="text" id="payout_addr_city" name="payout_addr_city"
+                     autocomplete="address-level2" value="<%= pd.payout_addr_city || '' %>">
+            </div>
+            <div class="field">
+              <label for="payout_addr_region">Parish, state or province</label>
+              <input type="text" id="payout_addr_region" name="payout_addr_region"
+                     autocomplete="address-level1" value="<%= pd.payout_addr_region || '' %>">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="payout_addr_postal_code">Postal or ZIP code</label>
+              <input type="text" id="payout_addr_postal_code" name="payout_addr_postal_code"
+                     autocomplete="postal-code" value="<%= pd.payout_addr_postal_code || '' %>">
+            </div>
+            <div class="field mb-0">
+              <label for="payout_addr_country">Country</label>
+              <input type="text" id="payout_addr_country" name="payout_addr_country"
+                     list="payout-country-list" autocomplete="country-name"
+                     value="<%= pd.payout_addr_country || '' %>">
+            </div>
+          </div>
+        </fieldset>
+
+        <datalist id="payout-country-list">
+          <% payoutCountries.forEach(function (c) { %><option value="<%= c %>"></option><% }); %>
+        </datalist>
+
+        <button class="btn" type="submit" data-busy="Saving…">Save payout details</button>
+        <p class="small muted mt-2 mb-0">
+          Account numbers are encrypted before they are stored. You and an administrator
+          can see them; an administrator cannot change them. Every change is recorded.
+        </p>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<script>
+  // Show only the fields that belong to the chosen method. Without JavaScript
+  // every group is visible and the form still works — the server validates only
+  // the scheme that was actually selected.
+  (function () {
+    var select = document.querySelector('[data-payout-scheme]');
+    if (!select) return;
+
+    function sync() {
+      var code = select.value;
+      document.querySelectorAll('[data-payout-fields]').forEach(function (el) {
+        el.style.display = el.getAttribute('data-payout-fields') === code ? '' : 'none';
+      });
+      document.querySelectorAll('[data-payout-common]').forEach(function (el) {
+        el.style.display = code ? '' : 'none';
+      });
+    }
+
+    select.addEventListener('change', sync);
+    sync();
+  }());
+</script>
 
 <div class="card">
   <div class="card-head"><h2>Password</h2></div>

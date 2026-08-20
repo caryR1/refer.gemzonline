@@ -91,6 +91,15 @@ router.get('/leads.csv', async (req, res, next) => {
         Email: l.email,
         Phone: l.phone || '',
         Company: l.company || '',
+        // Joined and split. The one-line version is what a person reads; the
+        // separate parts are what a mail merge or a mapping tool needs.
+        Address: util.addressOneLine(l),
+        'Address line 1': l.address || '',
+        'Address line 2': l.address_line2 || '',
+        City: l.city || '',
+        'State / parish': l.region || '',
+        'Postal code': l.postal_code || '',
+        Country: l.country || '',
         Campaign: l.campaign_name,
         Agent: l.agent_name || '',
         Relation: l.relation_code ? (relationMap[l.relation_code] || l.relation_code) : '',

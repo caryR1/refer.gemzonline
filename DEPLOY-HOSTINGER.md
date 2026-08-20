@@ -279,14 +279,45 @@ environment variable. There is no `.env` file on this path — hPanel injects th
 Set `PORT` to whatever hPanel tells you to use (often it sets this itself —
 leave it alone if so).
 
+Five of them decide whether this is a working production deployment or a
+development one that happens to be on the internet. Get these right first:
+
+| Variable | Production value | What goes wrong otherwise |
+|---|---|---|
+| `NODE_ENV` | `production` | Stack traces are shown to visitors; cookies are not marked secure |
+| `APP_URL` | `https://rportal.gemzonline.com` | Every referral and appointment link **emailed to a prospect** points at the server itself. The app refuses to send mail rather than post dead links, so email simply stops |
+| `TRUST_PROXY` | `true` | Behind Hostinger's proxy, secure cookies are unreliable, rate limiting counts every visitor as one client, and the audit log records the proxy's IP for everyone |
+| `SESSION_SECRET` | `openssl rand -hex 48` | Signed cookies are forgeable |
+| `PAYOUT_ENCRYPTION_KEY` | `openssl rand -hex 32` | Agents cannot save bank details at all — the section is closed |
+
+`PAYOUT_ENCRYPTION_KEY` is worth a second look. It encrypts agents' account
+numbers before they are written. **Changing it does not re-encrypt what is
+already stored** — every agent would have to enter their details again — so
+treat it like a database password: back it up, and use a different one in
+staging than in production.
+
+Before you hit Restart, if you have a terminal:
+
+```
+npm run check:prod
+```
+
+It reads the configuration, makes one round trip each to the database, Supabase
+and SMTP, and tells you exactly what would break. It changes nothing. Without a
+terminal, **Admin → Settings** shows the same information once you are signed in.
+
 ### B4. Create the database schema
 
 **No terminal needed.** Open the Supabase **SQL Editor** and run, in order:
 
 1. the contents of `db/schema.sql`
-2. the contents of `db/policies.sql`
+2. every file in `db/migrations/`, in filename order
+3. the contents of `db/policies.sql`
 
-Both are idempotent — re-run them after any upgrade that changes the schema.
+All of them are idempotent — re-run them after any upgrade that changes the
+schema. `db/migrations/` is where everything added after the first release
+lives; skipping it is why a column would be "missing" on an otherwise healthy
+install.
 
 If your plan does give you SSH or an hPanel terminal, `npm run db:push` does the
 same thing in one command.

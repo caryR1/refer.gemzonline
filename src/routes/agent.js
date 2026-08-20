@@ -22,6 +22,7 @@ const notify = require('../lib/notify');
 const events = require('../lib/events');
 const relations = require('../lib/relations');
 const commissions = require('../lib/commissions');
+const payouts = require('../lib/payouts');
 const { requireUser } = require('../middleware/auth');
 
 const router = express.Router();
@@ -535,12 +536,26 @@ router.get('/earnings.csv', async (req, res, next) => {
 // Profile
 // ---------------------------------------------------------------------------
 
-router.get('/profile', (req, res) => {
-  res.render('agent/profile', {
+function profileView(req, extra = {}) {
+  return {
     title: 'My profile',
     timezones: tz.COMMON_TIMEZONES,
     narrow: true,
-  });
+    payoutSchemes: payouts.SCHEMES,
+    currencies: payouts.CURRENCIES,
+    payoutCountries: payouts.COMMON_COUNTRIES,
+    holderTypes: payouts.HOLDER_TYPES,
+    // The agent's own details, decrypted — this is the one screen entitled to
+    // show them in full, because they are the person they belong to.
+    payoutValues: payouts.reveal(req.user),
+    payoutReady: config.payouts.keyPresent,
+    payoutErrors: [],
+    ...extra,
+  };
+}
+
+router.get('/profile', (req, res) => {
+  res.render('agent/profile', profileView(req));
 });
 
 router.post('/profile', async (req, res, next) => {
@@ -553,19 +568,15 @@ router.post('/profile', async (req, res, next) => {
       company: util.text(req.body.company, 120),
       country: util.text(req.body.country, 80),
       timezone: tz.safeZone(req.body.timezone, before.timezone),
-      payout_method: util.text(req.body.payout_method, 60),
-      payout_details: util.text(req.body.payout_details, 500),
     };
 
     await db.query(
       `update profiles set full_name = $2, phone = $3, whatsapp_number = $4,
-              company = $5, country = $6, timezone = $7, payout_method = $8,
-              payout_details = $9
+              company = $5, country = $6, timezone = $7
         where id = $1`,
       [
         before.id, after.full_name, after.phone, after.whatsapp_number,
-        after.company, after.country, after.timezone, after.payout_method,
-        after.payout_details,
+        after.company, after.country, after.timezone,
       ]
     );
 
@@ -578,12 +589,119 @@ router.post('/profile', async (req, res, next) => {
       summary: `${after.full_name} updated their profile`,
       before,
       after,
-    }, ['full_name', 'phone', 'whatsapp_number', 'company', 'country', 'timezone', 'payout_method']);
+    }, ['full_name', 'phone', 'whatsapp_number', 'company', 'country', 'timezone']);
 
     req.flash('success', 'Profile saved.');
     return res.redirect('/agent/profile');
   } catch (err) {
     next(err);
+  }
+});
+
+/**
+ * "How should we pay you" — saved on its own, not as part of the profile form.
+ *
+ * Separate because the failure modes are different. A mistyped phone number is
+ * a nuisance; a mistyped account number is a payment that goes somewhere else.
+ * Its own submit means its own validation errors, its own audit entry, and no
+ * chance of a rejected IBAN silently discarding an unrelated timezone change.
+ */
+router.post('/profile/payout', async (req, res, next) => {
+  try {
+    if (!config.payouts.keyPresent) {
+      req.flash('error', 'Payout details cannot be saved yet — the server is missing its encryption key. Please tell an administrator.');
+      return res.redirect('/agent/profile#payout');
+    }
+
+    const parsed = payouts.fromForm(req.body);
+
+    if (parsed.errors.length) {
+      // Re-render rather than redirect, so nothing typed is lost. The values
+      // come back from the submission, not the database — they were never saved.
+      return res.status(400).render('agent/profile', profileView(req, {
+        payoutErrors: parsed.errors,
+        payoutValues: Object.fromEntries(
+          Object.entries(req.body)
+            .filter(([k]) => k.startsWith('payout_'))
+            .map(([k, v]) => [k.replace(/^payout_/, ''), v])
+        ),
+        payoutDraft: parsed.plain,
+      }));
+    }
+
+    const before = payouts.summary(req.user);
+
+    if (parsed.cleared) {
+      await db.query(
+        `update profiles
+            set payout_method = null, payout_holder_name = null,
+                payout_holder_type = 'personal', payout_bank_country = null,
+                payout_currency = null, payout_addr_line1 = null,
+                payout_addr_line2 = null, payout_addr_city = null,
+                payout_addr_region = null, payout_addr_postal_code = null,
+                payout_addr_country = null, payout_secrets = null,
+                payout_last4 = null, payout_updated_at = now()
+          where id = $1`,
+        [req.user.id]
+      );
+
+      await audit.log({
+        tenantId: req.tenant.id, req,
+        action: 'payout.cleared',
+        entityType: 'profile',
+        entityId: req.user.id,
+        summary: `${req.user.full_name || req.user.email} removed their payout details`,
+        before,
+      });
+
+      req.flash('success', 'Payout details removed.');
+      return res.redirect('/agent/profile#payout');
+    }
+
+    const { payout_secrets: secrets, payout_last4: last4 } =
+      payouts.encryptSecrets(parsed.plain.payout_method, parsed.secrets);
+    const p = parsed.plain;
+
+    await db.query(
+      `update profiles
+          set payout_method = $2, payout_holder_name = $3, payout_holder_type = $4,
+              payout_bank_country = $5, payout_currency = $6,
+              payout_addr_line1 = $7, payout_addr_line2 = $8, payout_addr_city = $9,
+              payout_addr_region = $10, payout_addr_postal_code = $11,
+              payout_addr_country = $12, payout_secrets = $13, payout_last4 = $14,
+              payout_updated_at = now()
+        where id = $1`,
+      [
+        req.user.id, p.payout_method, p.payout_holder_name, p.payout_holder_type,
+        p.payout_bank_country, p.payout_currency,
+        p.payout_addr_line1, p.payout_addr_line2, p.payout_addr_city,
+        p.payout_addr_region, p.payout_addr_postal_code, p.payout_addr_country,
+        secrets, last4,
+      ]
+    );
+
+    // Record THAT the details changed and to what method — never the numbers.
+    // An audit log that quotes an account number is a second place to leak one.
+    await audit.log({
+      tenantId: req.tenant.id, req,
+      action: 'payout.updated',
+      entityType: 'profile',
+      entityId: req.user.id,
+      summary: `${req.user.full_name || req.user.email} updated their payout details`,
+      before,
+      after: {
+        method: p.payout_method,
+        holder: p.payout_holder_name,
+        currency: p.payout_currency,
+        country: p.payout_bank_country,
+        ends_with: last4 ? `••••${last4}` : '',
+      },
+    });
+
+    req.flash('success', 'Payout details saved. Only you and an administrator can see them.');
+    return res.redirect('/agent/profile#payout');
+  } catch (err) {
+    return next(err);
   }
 });
 

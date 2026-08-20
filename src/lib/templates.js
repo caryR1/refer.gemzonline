@@ -11,7 +11,7 @@
 
 const config = require('../config');
 const tz = require('./tz');
-const { escapeHtml, money } = require('./util');
+const { escapeHtml, money, addressOneLine } = require('./util');
 
 /** Everything a template is allowed to reference. */
 function buildContext({ lead, agent, campaign, commission, relationLabel, extra } = {}) {
@@ -46,8 +46,15 @@ function buildContext({ lead, agent, campaign, commission, relationLabel, extra 
       phone: lead.phone || '',
       whatsapp_number: lead.whatsapp_number || '',
       company: lead.company || '',
+      address: lead.address || '',
+      address_line2: lead.address_line2 || '',
       city: lead.city || '',
+      region: lead.region || '',
+      postal_code: lead.postal_code || '',
       country: lead.country || '',
+      // The whole address on one line, so a confirmation can read back what the
+      // prospect gave us without six separate placeholders and stray commas.
+      address_full: addressOneLine(lead),
       timezone: prospectZone,
       status: lead.status || '',
       relation: relationLabel || '',
@@ -158,9 +165,15 @@ const VARIABLE_REFERENCE = [
     group: 'Lead',
     vars: [
       'lead.first_name', 'lead.last_name', 'lead.full_name', 'lead.email',
-      'lead.phone', 'lead.company', 'lead.city', 'lead.country',
-      'lead.reference', 'lead.status', 'lead.relation', 'lead.timezone',
-      'lead.created_at',
+      'lead.phone', 'lead.company', 'lead.reference', 'lead.status',
+      'lead.relation', 'lead.timezone', 'lead.created_at',
+    ],
+  },
+  {
+    group: 'Address',
+    vars: [
+      'lead.address_full', 'lead.address', 'lead.address_line2',
+      'lead.city', 'lead.region', 'lead.postal_code', 'lead.country',
     ],
   },
   {

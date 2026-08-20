@@ -15,7 +15,8 @@
     "create:admin": "node scripts/create-admin.js",
     "test": "node scripts/test-units.js && node scripts/check-views.js && node scripts/check-routes.js",
     "check:views": "node scripts/check-views.js",
-    "check:routes": "node scripts/check-routes.js"
+    "check:routes": "node scripts/check-routes.js",
+    "check:prod": "node scripts/check-prod.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

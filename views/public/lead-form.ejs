@@ -53,20 +53,55 @@
         </div>
       </div>
 
-      <div class="field-row">
+      <fieldset>
+        <legend>Where are you? <span class="muted small">(optional)</span></legend>
+        <p class="help mt-0">Helps us reach the right person and, where a visit is involved, get to you.</p>
+
         <div class="field">
-          <label for="city">City <span class="muted small">(optional)</span></label>
-          <input type="text" id="city" name="city" autocomplete="address-level2" value="<%= form.city || '' %>">
+          <label for="address">Street address</label>
+          <input type="text" id="address" name="address" autocomplete="address-line1"
+                 placeholder="12 Hope Road" value="<%= form.address || '' %>">
         </div>
+
         <div class="field">
-          <label for="timezone">Your timezone</label>
-          <select id="timezone" name="timezone" data-detect-timezone>
-            <% timezones.forEach(function (zone) { %>
-              <option value="<%= zone %>" <%= form.timezone === zone ? 'selected' : '' %>><%= zone.replace(/_/g, ' ') %></option>
-            <% }); %>
-          </select>
-          <div class="help">So we suggest times that make sense for you.</div>
+          <label for="address_line2">Apartment, suite, building</label>
+          <input type="text" id="address_line2" name="address_line2" autocomplete="address-line2"
+                 value="<%= form.address_line2 || '' %>">
         </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="city">City or town</label>
+            <input type="text" id="city" name="city" autocomplete="address-level2" value="<%= form.city || '' %>">
+          </div>
+          <div class="field">
+            <label for="region">Parish, state or province</label>
+            <input type="text" id="region" name="region" autocomplete="address-level1" value="<%= form.region || '' %>">
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="postal_code">Postal or ZIP code</label>
+            <input type="text" id="postal_code" name="postal_code" autocomplete="postal-code"
+                   value="<%= form.postal_code || '' %>">
+          </div>
+          <div class="field mb-0">
+            <label for="country">Country</label>
+            <input type="text" id="country" name="country" autocomplete="country-name"
+                   value="<%= form.country || '' %>">
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="field">
+        <label for="timezone">Your timezone</label>
+        <select id="timezone" name="timezone" data-detect-timezone>
+          <% timezones.forEach(function (zone) { %>
+            <option value="<%= zone %>" <%= form.timezone === zone ? 'selected' : '' %>><%= zone.replace(/_/g, ' ') %></option>
+          <% }); %>
+        </select>
+        <div class="help">So we suggest times that make sense for you.</div>
       </div>
 
       <% var fields = Array.isArray(campaign.custom_fields) ? campaign.custom_fields : []; %>

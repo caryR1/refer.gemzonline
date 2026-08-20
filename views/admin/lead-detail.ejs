@@ -43,7 +43,15 @@
             <% } %>
           </dd>
           <% if (lead.company) { %><dt>Business</dt><dd><%= lead.company %></dd><% } %>
-          <% if (lead.city || lead.country) { %><dt>Location</dt><dd><%= [lead.city, lead.country].filter(Boolean).join(', ') %></dd><% } %>
+          <% var addr = util.addressLines(lead); %>
+          <% if (addr.length) { %>
+            <dt>Address</dt>
+            <dd>
+              <% addr.forEach(function (line) { %><div><%= line %></div><% }); %>
+              <a class="small" target="_blank" rel="noopener noreferrer"
+                 href="https://www.google.com/maps/search/?api=1&amp;query=<%= encodeURIComponent(addr.join(', ')) %>">Open in Maps</a>
+            </dd>
+          <% } %>
           <dt>Their timezone</dt><dd><%= lead.timezone.replace(/_/g, ' ') %></dd>
           <dt>Consent</dt>
           <dd>

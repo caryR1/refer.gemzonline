@@ -152,8 +152,8 @@ app.use((err, req, res, next) => {
   const status = err.status || 500;
 
   // The error page is the last thing standing between a fault and the user, so
-  // it must not be able to fail. When rendering it throws -- a missing partial,
-  // a template mistake -- Express hands that second error back to this same
+  // it must not be able to fail. When rendering it throws — a missing partial,
+  // a template mistake — Express hands that second error back to this same
   // handler and the response ends as a bare stack trace about the error page,
   // with the ORIGINAL error nowhere in sight. Catch it and fall back to plain
   // text, which needs nothing but the socket.
@@ -202,6 +202,11 @@ async function reportStatus() {
     console.log(`  Supabase project: ${config.db.projectRef || config.supabase.projectRef || 'unknown'}`);
   }
 
+  // The public address, said out loud. Every link this app emails is built from
+  // it, and a production process still carrying a development APP_URL is
+  // invisible until a prospect reports a dead link.
+  console.log(`  Public address: ${config.appUrl}${config.linksUsable ? '' : '  ← NOT REACHABLE — outbound email is being held back'}`);
+
   // Prove the keys belong to the project the URL names. A key from the other
   // project is accepted silently and only fails at sign-in, which reads like a
   // typo rather than a mismatched environment.
@@ -213,6 +218,19 @@ async function reportStatus() {
     }
   } catch (err) {
     console.log(`  Supabase keys: could not verify (${err.message})`);
+  }
+
+  try {
+    const secrets = require('./lib/crypto');
+    if (!secrets.isConfigured()) {
+      console.log('  Payout encryption: no key — agents cannot save bank details');
+    } else {
+      const probe = 'boot-probe';
+      const ok = secrets.decrypt(secrets.encrypt(probe)) === probe;
+      console.log(`  Payout encryption: ${ok ? 'ready' : 'key present but unusable'}`);
+    }
+  } catch (err) {
+    console.log(`  Payout encryption: unusable (${err.message})`);
   }
 
   try {

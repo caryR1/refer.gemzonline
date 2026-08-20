@@ -43,3 +43,6 @@ public/uploads/
 *.env
 env.*
 !.env.example
+
+# Scratch: files staged for you to delete (this bridge cannot unlink)
+_to_delete/

@@ -15,8 +15,28 @@ const whatsapp = require('../lib/whatsapp');
 const relations = require('../lib/relations');
 const setup = require('../lib/setup');
 const supabase = require('../lib/supabase');
+const secrets = require('../lib/crypto');
 
 const router = express.Router();
+
+/**
+ * Is the payout encryption key present AND usable?
+ *
+ * Checked by round trip, not by looking. A key that is the right length but was
+ * truncated on paste passes every superficial test and then fails the first
+ * time an agent tries to save their bank details — which is the worst possible
+ * moment to find out.
+ */
+function payoutHealth() {
+  if (!secrets.isConfigured()) return { ok: false, error: secrets.keyProblem() };
+  try {
+    const probe = 'health-probe';
+    if (secrets.decrypt(secrets.encrypt(probe)) !== probe) throw new Error('round trip mismatch');
+    return { ok: true, note: 'Agents can save bank details; they are encrypted at rest.' };
+  } catch (err) {
+    return { ok: false, error: `The key is set but unusable: ${err.message}` };
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Audit log
@@ -115,6 +135,16 @@ router.get('/settings', async (req, res, next) => {
         auth: authHealth,
         analytics: { ok: Boolean(config.analytics.ga4Id), id: config.analytics.ga4Id },
         google: { ok: config.supabase.googleEnabled },
+        // Without a key, the payout section on every agent's profile is closed.
+        // Worth saying here rather than leaving agents to discover it.
+        payouts: payoutHealth(),
+        // The check that catches a production server still carrying a
+        // development APP_URL before it emails a prospect a dead link.
+        links: {
+          ok: config.linksUsable,
+          note: config.appUrl,
+          error: `${config.appUrl} — nobody outside this server can open that, so outbound email is being held back.`,
+        },
       },
       problems: config.validate(),
       tenant: req.tenant,

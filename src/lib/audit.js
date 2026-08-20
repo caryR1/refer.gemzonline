@@ -15,8 +15,23 @@
 
 const db = require('./db');
 
-/** Only these keys are ever diffed, so we never log a password or token. */
-const REDACT = new Set(['access_token', 'password', 'pass', 'token', 'secret']);
+/**
+ * Never written to the log, whatever a caller passes.
+ *
+ * The audit trail is read by more people than the records it describes, and it
+ * is exported to CSV. A bank account number that reaches it has been copied
+ * into a second, more widely readable place — so the encrypted blob, the raw
+ * identifiers and the free-text payout note are all refused here. Payout
+ * entries record the method and the last four digits instead, which is enough
+ * to tell two accounts apart and useless to anyone else.
+ */
+const REDACT = new Set([
+  'access_token', 'password', 'pass', 'token', 'secret',
+  'payout_secrets', 'payout_details',
+  'iban', 'bic', 'account_number', 'routing_number', 'sort_code',
+  'institution_number', 'transit_number', 'swift_bic',
+  'wise_identifier', 'paypal_email', 'other_details',
+]);
 
 function clean(obj) {
   if (!obj || typeof obj !== 'object') return obj ?? null;
@@ -167,6 +182,9 @@ const ACTION_LABELS = {
   'lead.cancelled': 'Cancelled by prospect',
   'lead.relation_changed': 'Relation updated',
   'lead.account_toggled': 'Recurring account toggled',
+  'payout.updated': 'Payout details updated',
+  'payout.cleared': 'Payout details removed',
+  'payout.viewed': 'Payout details viewed',
   'prefs.admin_changed': 'Notification preferences changed by admin',
   'campaign.created': 'Campaign created',
   'campaign.updated': 'Campaign updated',

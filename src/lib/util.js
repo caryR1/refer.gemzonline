@@ -147,8 +147,42 @@ function withQuery(query, changes) {
   return s ? `?${s}` : '';
 }
 
+/**
+ * A postal address as the lines you would write on an envelope.
+ *
+ * Every part is optional, and a partly-filled address is the common case — a
+ * prospect who gives a city and nothing else should still read as "Kingston",
+ * not as a run of empty commas. Blank parts collapse; blank lines disappear.
+ *
+ * Works on anything carrying the same field names, which is why both a lead and
+ * an agent's payout address (payout_addr_*, via `prefix`) can use it.
+ */
+function addressLines(source, prefix = '') {
+  if (!source) return [];
+  // Not util.str(): that returns null for an empty value, and every part of an
+  // address is routinely empty.
+  const get = (field) => String(source[`${prefix}${field}`] ?? '').trim();
+
+  const cityLine = [get('city'), get('region')].filter(Boolean).join(', ');
+  const postal = get('postal_code');
+
+  return [
+    get('address') || get('line1'),
+    get('address_line2') || get('line2'),
+    // "Kingston, St Andrew 10" — the postcode belongs on the city line, not
+    // stranded on one of its own.
+    [cityLine, postal].filter(Boolean).join(' '),
+    get('country'),
+  ].filter(Boolean);
+}
+
+/** The same address on one line, for tables and CSV columns. */
+function addressOneLine(source, prefix = '') {
+  return addressLines(source, prefix).join(', ');
+}
+
 module.exports = {
   slugify, token, reference, str, text, num, bool, isEmail, escapeHtml,
   money, rateLabel, LEAD_STATUSES, statusMeta, TRIGGER_EVENTS, emailList,
-  paginate, withQuery,
+  paginate, withQuery, addressLines, addressOneLine,
 };

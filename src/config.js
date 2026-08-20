@@ -132,6 +132,30 @@ function refFromDatabaseUrl(url) {
 config.supabase.projectRef = refFromUrl(config.supabase.url);
 config.db.projectRef = refFromDatabaseUrl(config.db.url);
 
+/**
+ * Is APP_URL something the outside world can reach?
+ *
+ * This matters more than it first looks. Referral links, the acknowledgement
+ * page and the prospect's "Edit appointment" link are all built from APP_URL
+ * and then *emailed*. A production deployment still carrying a development
+ * APP_URL does not fail in any visible way — it sends real prospects links to
+ * their own machine, and nobody finds out until one of them complains that the
+ * link is dead. By then the emails are gone.
+ */
+config.appUrlIsLocal = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:|\/|$)/i
+  .test(config.appUrl);
+config.appUrlExplicit = Boolean(process.env.APP_URL);
+
+/** Safe to put a link in an email? On localhost in development, yes. In
+ *  production, only once APP_URL names a real host. */
+config.linksUsable = !config.isProd || (config.appUrlExplicit && !config.appUrlIsLocal);
+
+config.payouts = {
+  // Bank details are encrypted at rest. Without a key the section is shown as
+  // unavailable rather than quietly storing account numbers in the clear.
+  keyPresent: Boolean((process.env.PAYOUT_ENCRYPTION_KEY || '').trim()),
+};
+
 config.validate = function validate() {
   const problems = [];
 
@@ -158,9 +182,43 @@ config.validate = function validate() {
   if (config.isProd && config.sessionSecret === 'insecure-dev-secret-change-me') {
     problems.push('SESSION_SECRET is still the default value — set a long random string.');
   }
-  if (config.isProd && config.appUrl.startsWith('http://')) {
+  // Ordered worst first: an unset APP_URL in production is a different and
+  // larger problem than an http:// one, and saying both at once reads as noise.
+  if (config.isProd && !config.appUrlExplicit) {
+    problems.push(
+      'APP_URL is not set. In production the app falls back to '
+      + `${config.appUrl}, so every referral and appointment link it emails would `
+      + 'point at the server itself. Set APP_URL to the public address of the site.'
+    );
+  } else if (config.isProd && config.appUrlIsLocal) {
+    problems.push(
+      `APP_URL is "${config.appUrl}" — a development address on a production server. `
+      + 'Every referral and appointment link emailed to a prospect would be dead. '
+      + 'Set it to the public address of the site.'
+    );
+  } else if (config.isProd && config.appUrl.startsWith('http://')) {
     problems.push('APP_URL is not https — referral and appointment links will be insecure.');
   }
+
+  // Hostinger, and every other managed host, puts a reverse proxy in front. With
+  // trust proxy off, Express sees the proxy's address instead of the visitor's:
+  // secure cookies are withheld, rate limiting counts everyone as one client,
+  // and the audit log records the same IP for every action.
+  if (config.isProd && !config.trustProxy) {
+    problems.push(
+      'TRUST_PROXY is off in production. Behind a reverse proxy that makes secure '
+      + 'cookies unreliable, rate limiting ineffective, and every audit entry record '
+      + 'the proxy\'s IP address instead of the visitor\'s.'
+    );
+  }
+
+  if (!config.payouts.keyPresent) {
+    problems.push(
+      'PAYOUT_ENCRYPTION_KEY is not set — agents cannot save bank details. '
+      + 'Generate one with: openssl rand -hex 32'
+    );
+  }
+
   return problems;
 };
 

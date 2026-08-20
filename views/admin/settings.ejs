@@ -102,6 +102,16 @@
           <td class="muted small"><%= health.auth.ok ? health.auth.note : health.auth.error %></td>
         </tr>
         <tr>
+          <td class="primary">Public address</td>
+          <td><span class="badge <%= health.links.ok ? 'green' : 'red' %>"><%= health.links.ok ? 'reachable' : 'local only' %></span></td>
+          <td class="muted small"><%= health.links.ok ? health.links.note : health.links.error %></td>
+        </tr>
+        <tr>
+          <td class="primary">Payout encryption</td>
+          <td><span class="badge <%= health.payouts.ok ? 'green' : 'red' %>"><%= health.payouts.ok ? 'ready' : 'no key' %></span></td>
+          <td class="muted small"><%= health.payouts.ok ? health.payouts.note : health.payouts.error %></td>
+        </tr>
+        <tr>
           <td class="primary">Email (SMTP)</td>
           <td><span class="badge <%= health.email.ok ? 'green' : 'red' %>"><%= health.email.ok ? 'ready' : 'not working' %></span></td>
           <td class="muted small"><%= health.email.error || 'Hostinger SMTP verified.' %></td>

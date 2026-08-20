@@ -13,6 +13,7 @@ const notify = require('../lib/notify');
 const events = require('../lib/events');
 const users = require('../lib/users');
 const commissions = require('../lib/commissions');
+const payouts = require('../lib/payouts');
 const { getAdminClient } = require('../lib/supabase');
 
 const router = express.Router();
@@ -94,12 +95,17 @@ router.post('/agents', async (req, res, next) => {
   }
 });
 
-router.get('/agents/:id', async (req, res, next) => {
-  try {
-    const agent = await db.one('select * from profiles where id = $1 and tenant_id = $2', [req.params.id, req.tenant.id]);
-    if (!agent) return next();
-
-    const [memberships, totals, leadStats, availableCampaigns, prefs, recentLeads] = await Promise.all([
+/**
+ * Everything the agent detail page shows.
+ *
+ * Extracted because two routes render this page: the ordinary GET, and the
+ * POST that reveals payout details. The reveal has to render rather than
+ * redirect — a redirect would put the decrypted values behind a URL that could
+ * be refreshed, shared or bookmarked, and each refresh would either re-reveal
+ * without a record or show nothing at all.
+ */
+async function agentDetailModel(req, agent, extra = {}) {
+  const [memberships, totals, leadStats, availableCampaigns, prefs, recentLeads] = await Promise.all([
       db.all(
         `select cm.*, c.name as campaign_name, c.id as campaign_id,
                 cp.name as profile_name, cp.id as profile_id, rl.slug as link_slug,
@@ -129,19 +135,83 @@ router.get('/agents/:id', async (req, res, next) => {
           where l.agent_id = $1 order by l.created_at desc limit 10`,
         [agent.id]
       ),
-    ]);
+  ]);
 
-    res.render('admin/agent-detail', {
-      title: agent.full_name || agent.email,
-      agent,
-      memberships,
-      totals,
-      counts: Object.fromEntries(leadStats.map((r) => [r.status, r.n])),
-      availableCampaigns,
-      prefs,
-      recentLeads,
-      whatsappLive: config.whatsapp.configured,
+  return {
+    title: agent.full_name || agent.email,
+    agent,
+    memberships,
+    totals,
+    counts: Object.fromEntries(leadStats.map((r) => [r.status, r.n])),
+    availableCampaigns,
+    prefs,
+    recentLeads,
+    whatsappLive: config.whatsapp.configured,
+    // Method, holder and last four — enough to recognise an account and to
+    // reconcile a payment, without decrypting anything.
+    payout: payouts.summary(agent),
+    payoutKeyPresent: config.payouts.keyPresent,
+    payoutRows: null,          // populated only by the reveal route
+    ...extra,
+  };
+}
+
+router.get('/agents/:id', async (req, res, next) => {
+  try {
+    const agent = await db.one('select * from profiles where id = $1 and tenant_id = $2', [req.params.id, req.tenant.id]);
+    if (!agent) return next();
+
+    res.render('admin/agent-detail', await agentDetailModel(req, agent));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Show an agent's full payout details.
+ *
+ * Deliberately an explicit action rather than something the page does on load.
+ * An admin needs these numbers to make a payment and should be able to get
+ * them; they should not be sitting on screen behind everyone's shoulder every
+ * time someone opens an agent record, and the audit trail should say who looked
+ * and when rather than logging a hundred incidental page views.
+ *
+ * Admins can read. They cannot write — there is no admin route that changes
+ * these values, so a compromised admin account cannot redirect an agent's money.
+ */
+router.post('/agents/:id/payout/reveal', async (req, res, next) => {
+  try {
+    const agent = await db.one('select * from profiles where id = $1 and tenant_id = $2', [req.params.id, req.tenant.id]);
+    if (!agent) return next();
+
+    if (!agent.payout_secrets) {
+      req.flash('info', `${agent.full_name || agent.email} has not added payout details yet.`);
+      return res.redirect(`/admin/agents/${agent.id}#payout`);
+    }
+
+    let rows;
+    try {
+      rows = payouts.detailRows(agent);
+    } catch (err) {
+      // Decryption failing means the wrong PAYOUT_ENCRYPTION_KEY, not a bad
+      // record. Say so plainly — "invalid data" would send someone looking in
+      // entirely the wrong place.
+      req.flash('error',
+        'Could not decrypt these details. PAYOUT_ENCRYPTION_KEY is not the key they were '
+        + 'saved with. Restore the original key — changing it does not re-encrypt what is stored.');
+      return res.redirect(`/admin/agents/${agent.id}#payout`);
+    }
+
+    await audit.log({
+      tenantId: req.tenant.id, req,
+      action: 'payout.viewed',
+      entityType: 'profile',
+      entityId: agent.id,
+      summary: `${req.user.full_name || req.user.email} viewed ${agent.full_name || agent.email}'s payout details`,
+      after: { method: agent.payout_method, ends_with: agent.payout_last4 ? `••••${agent.payout_last4}` : '' },
     });
+
+    return res.render('admin/agent-detail', await agentDetailModel(req, agent, { payoutRows: rows }));
   } catch (err) {
     next(err);
   }

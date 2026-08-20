@@ -96,13 +96,25 @@ ENABLE_CRON=false
 
 # No analytics on localhost
 GA4_MEASUREMENT_ID=
+
+# Encrypts payout details. Use a throwaway key here, NOT production's.
+PAYOUT_ENCRYPTION_KEY=
 ```
 
-Generate the session secret:
+Generate the session secret (96 hex characters):
 
 ```powershell
 -join ((1..96) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })
 ```
+
+And the payout encryption key (64 hex characters — it must be exactly 32 bytes):
+
+```powershell
+-join ((1..64) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })
+```
+
+Without that key the "How should we pay you" section on an agent's profile is
+closed, and says so. Everything else works.
 
 With `SMTP_ENABLED=false`, nothing is sent — every message is written to the
 notification log as `skipped`, so you can still see exactly what *would* have

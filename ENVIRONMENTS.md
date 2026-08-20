@@ -11,6 +11,8 @@ Two Supabase projects, one codebase.
 | Config lives in | `.env` (never committed) | Hostinger environment variables |
 | Email | `SMTP_ENABLED=false` — logged, not sent | live |
 | Scheduler | `ENABLE_CRON=false` | `ENABLE_CRON=true` |
+| `TRUST_PROXY` | `false` | `true` — there is a proxy in front |
+| `PAYOUT_ENCRYPTION_KEY` | its own key | a different key, backed up |
 | Data | disposable | real people |
 
 ---
@@ -28,8 +30,14 @@ projects, and prints the project ref on every boot:
 ```
   Environment: DEVELOPMENT
   Supabase project: chqaqjyjglpehmlvwtom
+  Public address: http://localhost:3000
+  Supabase keys: verified
+  Payout encryption: ready
   Tenant: GemzOnline (gemzonline)
 ```
+
+`npm run check:prod` reports the same things in more detail, and exits non-zero
+if anything would actually break. Run it before every production deploy.
 
 Every non-production page also carries an orange banner showing the environment
 and project. If you see it on rportal.gemzonline.com, `NODE_ENV` is wrong there.
@@ -40,7 +48,10 @@ and project. If you see it on rportal.gemzonline.com, `NODE_ENV` is wrong there.
 
 **1. Change it locally.** Edit code, run `npm run dev`, click through it.
 
-**2. If the schema changed**, edit `db/schema.sql` and apply to staging:
+**2. If the schema changed**, add a numbered file to `db/migrations/` — never
+edit `db/schema.sql`, which is the original baseline. Write every statement so
+it can run twice (`add column if not exists`, `create index if not exists`), then
+apply to staging:
 
 ```powershell
 npm run db:push

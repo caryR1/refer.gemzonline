@@ -121,10 +121,6 @@
           <dt>Timezone</dt><dd><%= agent.timezone.replace(/_/g, ' ') %></dd>
           <dt>Signed up</dt><dd><%= tz.fmtShort(agent.created_at, user.timezone) %></dd>
           <dt>Last seen</dt><dd><%= agent.last_login_at ? tz.fmtRelative(agent.last_login_at) : 'never' %></dd>
-          <dt>Payout method</dt><dd><%= agent.payout_method || '—' %></dd>
-          <% if (agent.payout_details) { %>
-            <dt>Payout details</dt><dd style="white-space:pre-line"><%= agent.payout_details %></dd>
-          <% } %>
         </dl>
 
         <div class="btn-row">
@@ -144,6 +140,70 @@
             </button>
           </form>
         </div>
+      </div>
+    </div>
+
+    <div class="card" id="payout">
+      <div class="card-head">
+        <div>
+          <h2>How to pay them</h2>
+          <p class="sub">Set by the agent. Read-only here, so nobody but the account holder can change where their money goes.</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <% if (!payout.configured) { %>
+          <p class="muted small mb-0">
+            <%= agent.full_name || agent.email %> has not added payout details yet.
+            <% if (!payoutKeyPresent) { %>
+              <br><strong>PAYOUT_ENCRYPTION_KEY is not set on this server</strong>, so they cannot.
+            <% } %>
+          </p>
+        <% } else { %>
+          <dl class="kv mb-3">
+            <dt>Method</dt><dd><%= payout.label %></dd>
+            <dt>Account holder</dt><dd><%= payout.holder || '—' %></dd>
+            <dt>Pays in</dt><dd><%= payout.currency || '—' %><%= payout.country ? ' · ' + payout.country : '' %></dd>
+            <dt>Account</dt><dd><%= payout.masked || '—' %></dd>
+            <% var pAddr = util.addressLines(agent, 'payout_addr_'); %>
+            <% if (pAddr.length) { %>
+              <dt>Their address</dt>
+              <dd><% pAddr.forEach(function (line) { %><div><%= line %></div><% }); %></dd>
+            <% } %>
+            <% if (agent.payout_updated_at) { %>
+              <dt>Last changed</dt><dd><%= tz.fmtShort(agent.payout_updated_at, user.timezone) %></dd>
+            <% } %>
+          </dl>
+
+          <% if (payoutRows && payoutRows.length) { %>
+            <div class="alert info">
+              <span>i</span>
+              <div>
+                <strong>Full details — this view was recorded in the audit log.</strong>
+                <div class="small">Close or reload the page to hide them again.</div>
+              </div>
+            </div>
+            <dl class="kv mb-0">
+              <% payoutRows.forEach(function (row) { %>
+                <dt><%= row.label %></dt>
+                <dd><code style="user-select:all"><%= row.value %></code></dd>
+              <% }); %>
+            </dl>
+          <% } else { %>
+            <form method="post" action="/admin/agents/<%= agent.id %>/payout/reveal">
+              <button class="btn secondary sm" type="submit">Show full details</button>
+              <span class="small muted" style="margin-left:8px">Recorded in the audit log.</span>
+            </form>
+          <% } %>
+        <% } %>
+
+        <% if (agent.payout_details) { %>
+          <hr>
+          <p class="small muted mb-0">
+            <strong>Earlier note:</strong>
+            <span style="white-space:pre-line"><%= agent.payout_details %></span>
+            <br>Kept from before structured payout details existed. Not used for payment.
+          </p>
+        <% } %>
       </div>
     </div>
 

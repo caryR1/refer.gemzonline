@@ -69,7 +69,7 @@ for (const file of files) {
   // `layout('layouts/bare')` inside a template is ejs-locals syntax. This
   // project uses express-ejs-layouts, where the layout is chosen by passing
   // `layout: 'layouts/bare'` in the render options. The call compiles fine and
-  // only throws "layout is not defined" when the page is actually rendered --
+  // only throws "layout is not defined" when the page is actually rendered —
   // which, for an error page, is the first moment something else has already
   // gone wrong and you can least afford a second fault. Catch it here.
   if (/<%[^%]*\blayout\s*\(/.test(source)) {

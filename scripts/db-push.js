@@ -65,6 +65,21 @@ async function main() {
   await db.query(fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8'));
   console.log('  ok');
 
+  // Everything added after the baseline lives in db/migrations, applied in
+  // filename order. Each file is written to be idempotent, so this runs the
+  // same way on a fresh database and on one that is already up to date — no
+  // version table to get out of step with reality.
+  const migrationsDir = path.join(__dirname, '..', 'db', 'migrations');
+  if (fs.existsSync(migrationsDir)) {
+    const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
+    for (const file of files) {
+      console.log(`→ applying db/migrations/${file}`);
+      await db.query(fs.readFileSync(path.join(migrationsDir, file), 'utf8'));
+      console.log('  ok');
+    }
+    if (!files.length) console.log('→ no migrations to apply');
+  }
+
   const hasAuth = await db.one("select 1 as ok from pg_namespace where nspname = 'auth' limit 1");
 
   if (hasAuth) {

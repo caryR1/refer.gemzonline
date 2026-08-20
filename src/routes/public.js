@@ -177,7 +177,14 @@ router.post('/r/:slug/apply', formLimiter, async (req, res, next) => {
       email: util.text(body.email, 200).toLowerCase(),
       phone: util.text(body.phone, 40),
       company: util.text(body.company, 120),
+      // Full postal address. All optional — a prospect who will not give an
+      // address is still a prospect, and an extra required field on a public
+      // form costs more in abandoned submissions than the data is worth.
+      address: util.text(body.address, 160),
+      address_line2: util.text(body.address_line2, 160),
       city: util.text(body.city, 80),
+      region: util.text(body.region, 80),
+      postal_code: util.text(body.postal_code, 24),
       country: util.text(body.country, 80),
       timezone: tz.safeZone(body.timezone, config.staffTimezone),
     };
@@ -207,10 +214,12 @@ router.post('/r/:slug/apply', formLimiter, async (req, res, next) => {
     const lead = await db.one(
       `insert into leads
         (tenant_id, reference, access_token, campaign_id, agent_id, member_id,
-         referral_link_id, first_name, last_name, email, phone, company, city,
-         country, timezone, custom, utm_source, utm_medium, utm_campaign,
+         referral_link_id, first_name, last_name, email, phone, company,
+         address, address_line2, city, region, postal_code, country,
+         timezone, custom, utm_source, utm_medium, utm_campaign,
          landing_url, user_agent, ip_address)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
+               $19,$20,$21,$22,$23,$24,$25,$26)
        returning *`,
       [
         req.tenant.id,
@@ -221,7 +230,9 @@ router.post('/r/:slug/apply', formLimiter, async (req, res, next) => {
         link ? link.member_id : null,
         link ? link.id : null,
         form.first_name, form.last_name, form.email, form.phone, form.company,
-        form.city, form.country, form.timezone,
+        form.address, form.address_line2, form.city, form.region,
+        form.postal_code, form.country,
+        form.timezone,
         JSON.stringify(custom),
         util.text(body.utm_source, 120), util.text(body.utm_medium, 120),
         util.text(body.utm_campaign, 120),

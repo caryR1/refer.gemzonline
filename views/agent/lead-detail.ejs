@@ -39,8 +39,10 @@
             <dd><%= lead.whatsapp_number %> <%= lead.whatsapp_opt_in ? '' : '(no opt-in)' %></dd>
           <% } %>
           <% if (lead.company) { %><dt>Business</dt><dd><%= lead.company %></dd><% } %>
-          <% if (lead.city || lead.country) { %>
-            <dt>Location</dt><dd><%= [lead.city, lead.country].filter(Boolean).join(', ') %></dd>
+          <% var addr = util.addressLines(lead); %>
+          <% if (addr.length) { %>
+            <dt>Address</dt>
+            <dd><% addr.forEach(function (line) { %><div><%= line %></div><% }); %></dd>
           <% } %>
           <dt>Their timezone</dt><dd><%= lead.timezone.replace(/_/g, ' ') %></dd>
           <dt>Consent</dt>

@@ -257,9 +257,66 @@ begin
   if v_count <> 1 then raise exception 'expected 1 audit entry, found %', v_count; end if;
   raise notice '   ok — rank change captured with its old and new value';
 
+  -- =========================================================================
+  raise notice '16. a lead carries a full postal address';
+  update leads
+     set address = '12 Hope Road', address_line2 = 'Apt 4B', city = 'Kingston',
+         region = 'St Andrew', postal_code = 'JMAAW10', country = 'Jamaica'
+   where id = v_lead;
+  select count(*) into v_count
+    from leads
+   where id = v_lead and address_line2 = 'Apt 4B' and postal_code = 'JMAAW10';
+  if v_count <> 1 then
+    raise exception 'FAILED: the lead address columns are missing — has db/migrations/001 been applied?';
+  end if;
+  raise notice '   ok — street, second line, city, region, postcode and country all persist';
+
+  -- =========================================================================
+  raise notice '17. only payout methods the app can actually pay are accepted';
+  begin
+    update profiles set payout_method = 'carrier pigeon' where id = v_agent;
+    raise exception 'FAILED: an unknown payout method was allowed';
+  exception when check_violation then
+    raise notice '   ok — the method must be one the application knows how to pay';
+  end;
+
+  -- =========================================================================
+  raise notice '18. payout details cannot be half-saved';
+  begin
+    update profiles
+       set payout_method = null, payout_secrets = 'v1.aa.bb.cc'
+     where id = v_agent;
+    raise exception 'FAILED: stored account details with no method to pay them by';
+  exception when check_violation then
+    raise notice '   ok — a stored account always says how it is paid';
+  end;
+
+  -- =========================================================================
+  raise notice '19. an account holder is personal or business, nothing else';
+  begin
+    update profiles set payout_holder_type = 'charity' where id = v_agent;
+    raise exception 'FAILED: an unknown account holder type was allowed';
+  exception when check_violation then
+    raise notice '   ok — personal or business only';
+  end;
+
+  -- =========================================================================
+  raise notice '20. a complete payout record stores and reads back';
+  update profiles
+     set payout_method = 'iban', payout_holder_name = 'Test Agent',
+         payout_holder_type = 'personal', payout_bank_country = 'United Kingdom',
+         payout_currency = 'USD', payout_secrets = 'v1.aa.bb.cc',
+         payout_last4 = '6819', payout_updated_at = now()
+   where id = v_agent;
+  select count(*) into v_count
+    from profiles
+   where id = v_agent and payout_last4 = '6819' and payout_secrets is not null;
+  if v_count <> 1 then raise exception 'FAILED: the payout record did not persist'; end if;
+  raise notice '   ok — method, holder, currency and ciphertext persist together';
+
   raise notice '';
   raise notice '=========================================';
-  raise notice 'All 15 schema checks passed.';
+  raise notice 'All 20 schema checks passed.';
   raise notice '=========================================';
 end $$;
 
