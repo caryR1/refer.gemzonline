@@ -17,7 +17,7 @@ You will need:
 
 - A Supabase project (free tier is fine to begin with)
 - A Hostinger mailbox for outbound email, e.g. `no-reply@gemzonline.com`
-- The domain `refer.gemzonline.com` pointing at your Hostinger hosting
+- The domain `rportal.gemzonline.com` pointing at your Hostinger hosting
 
 ### 1.1 Supabase
 
@@ -51,9 +51,9 @@ You will need:
    OAuth client ID and secret (create them in Google Cloud Console → APIs &
    Services → Credentials → OAuth client ID → Web application).
 6. **Authentication → URL Configuration**:
-   - Site URL: `https://refer.gemzonline.com`
-   - Redirect URLs: add `https://refer.gemzonline.com/auth/callback` and
-     `https://refer.gemzonline.com/reset-password`
+   - Site URL: `https://rportal.gemzonline.com`
+   - Redirect URLs: add `https://rportal.gemzonline.com/auth/callback` and
+     `https://rportal.gemzonline.com/reset-password`
 
    In Google Cloud Console, the authorised redirect URI is Supabase's own
    callback — `https://<your-project>.supabase.co/auth/v1/callback` — not this
@@ -183,12 +183,12 @@ curl localhost:3000/healthz
 
 ### A6. Nginx and SSL
 
-Create `/etc/nginx/sites-available/refer.gemzonline.com`:
+Create `/etc/nginx/sites-available/rportal.gemzonline.com`:
 
 ```nginx
 server {
     listen 80;
-    server_name refer.gemzonline.com;
+    server_name rportal.gemzonline.com;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -210,9 +210,9 @@ server {
 Then:
 
 ```bash
-ln -s /etc/nginx/sites-available/refer.gemzonline.com /etc/nginx/sites-enabled/
+ln -s /etc/nginx/sites-available/rportal.gemzonline.com /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
-certbot --nginx -d refer.gemzonline.com
+certbot --nginx -d rportal.gemzonline.com
 ```
 
 Certbot handles the HTTPS redirect and sets up renewal.
@@ -261,7 +261,7 @@ hPanel → **Advanced → Node.js** → Create application:
 | Node version | 20.x (or the highest offered) |
 | Source | **Import Git Repository** → `caryR1/refer.gemzonline`, branch `main` |
 | Application root | `refer-gemzonline` |
-| Application URL | `refer.gemzonline.com` |
+| Application URL | `rportal.gemzonline.com` |
 | Application startup file | `src/server.js` |
 | Build / install command | `npm install` |
 
@@ -309,14 +309,14 @@ later delete by mistake.
 ### B6. Start it
 
 Hit **Restart** in the Node.js app screen. Visit
-`https://refer.gemzonline.com/healthz` — you want `{"status":"ok"}`.
+`https://rportal.gemzonline.com/healthz` — you want `{"status":"ok"}`.
 
 Enable SSL in hPanel → **Security → SSL** if it is not already on.
 
 ### B7. Keeping the scheduler alive
 
 If the app idles out and reminders stop, the fix is an external ping. Any free
-uptime monitor hitting `https://refer.gemzonline.com/healthz` every 5 minutes
+uptime monitor hitting `https://rportal.gemzonline.com/healthz` every 5 minutes
 will keep it warm. That endpoint is cheap — one `select 1`.
 
 If reminders still prove unreliable, move to a VPS. Scheduled work on shared
@@ -328,7 +328,7 @@ hosting is always a bit of a fight.
 
 Work through this once; it catches most of what goes wrong.
 
-- [ ] `https://refer.gemzonline.com/healthz` returns `{"status":"ok"}`
+- [ ] `https://rportal.gemzonline.com/healthz` returns `{"status":"ok"}`
 - [ ] You can sign in at `/login` with the admin you created
 - [ ] **Admin → Settings** shows database, email and (if configured) WhatsApp green
 - [ ] **Admin → Settings → First-run setup** shows templates and relationship
@@ -405,7 +405,7 @@ SPF and DKIM are not set up. hPanel → Emails → DNS settings.
 
 **Google sign-in bounces back to the login page.**
 The redirect URL is not registered in Supabase → Authentication → URL
-Configuration. It must be exactly `https://refer.gemzonline.com/auth/callback`.
+Configuration. It must be exactly `https://rportal.gemzonline.com/auth/callback`.
 
 **Emails are not going out at all, and the log shows nothing.**
 No templates are installed. Admin → Settings → First-run setup → Install

@@ -11,7 +11,7 @@ WhatsApp.
 Built primarily for internal use, structured so it can be sold to external
 clients later without a data migration.
 
-Live at **[refer.GemzOnline.com](https://refer.gemzonline.com)**.
+Live at **[rportal.gemzonline.com](https://rportal.gemzonline.com)**.
 
 ---
 

@@ -5,7 +5,7 @@ Two Supabase projects, one codebase.
 | | Staging | Production |
 |---|---|---|
 | Runs on | your machine, `npm run dev` | Hostinger |
-| URL | `http://localhost:3000` | `https://refer.gemzonline.com` |
+| URL | `http://localhost:3000` | `https://rportal.gemzonline.com` |
 | Supabase project | the test project | the live project |
 | `NODE_ENV` | `development` | `production` |
 | Config lives in | `.env` (never committed) | Hostinger environment variables |
@@ -32,7 +32,7 @@ projects, and prints the project ref on every boot:
 ```
 
 Every non-production page also carries an orange banner showing the environment
-and project. If you see it on refer.gemzonline.com, `NODE_ENV` is wrong there.
+and project. If you see it on rportal.gemzonline.com, `NODE_ENV` is wrong there.
 
 ---
 
@@ -77,7 +77,7 @@ column the live database does not have. Either:
 - paste the changed part of `db/schema.sql` into the **production** Supabase SQL
   Editor.
 
-**7. Check production is healthy:** `https://refer.gemzonline.com/healthz`
+**7. Check production is healthy:** `https://rportal.gemzonline.com/healthz`
 should report `"status":"ok"` and `"database":true`.
 
 ---
