@@ -6,8 +6,6 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
-const session = require('express-session');
-const flash = require('connect-flash');
 const expressLayouts = require('express-ejs-layouts');
 
 const config = require('./config');
@@ -15,6 +13,7 @@ const db = require('./lib/db');
 const tz = require('./lib/tz');
 const util = require('./lib/util');
 const tenant = require('./lib/tenant');
+const flash = require('./middleware/flash');
 const { attachUser } = require('./middleware/auth');
 
 const app = express();
@@ -57,19 +56,11 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser(config.sessionSecret));
 
-app.use(session({
-  secret: config.sessionSecret,
-  resave: false,
-  saveUninitialized: false,
-  name: 'rg_flash',
-  cookie: {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: config.isProd,
-    maxAge: 1000 * 60 * 30,
-  },
-}));
-app.use(flash());
+// Flash messages ride in a signed cookie rather than a server-side session.
+// express-session's default MemoryStore is explicitly not for production: it
+// leaks memory and cannot span processes, and a database-backed store is a lot
+// of machinery for carrying one sentence across a redirect.
+app.use(flash);
 
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   maxAge: config.isProd ? '7d' : 0,
@@ -165,7 +156,62 @@ app.use((err, req, res, next) => {
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
-async function start() {
+/**
+ * Diagnostics that touch the network or the database.
+ *
+ * Deliberately run AFTER listen(), never before. Managed hosts give the process
+ * a few seconds to bind a port — Hostinger allows three — and a Supabase round
+ * trip plus a first database connection can easily exceed that on a cold start.
+ * Blocking the listen on them gets the app killed at boot with a message about
+ * listen() that points nowhere near the real cause.
+ */
+async function reportStatus() {
+  const problems = config.validate();
+  if (problems.length) {
+    console.warn('\n  Configuration warnings:');
+    problems.forEach((p) => console.warn(`   • ${p}`));
+    console.warn('');
+  }
+
+  // Say plainly which environment and which Supabase project this process is
+  // talking to. Confusing staging for production is the expensive mistake in a
+  // two-environment setup, and it is almost always preventable by looking.
+  console.log(`  Environment: ${config.env.toUpperCase()}`);
+  if (config.supabase.projectRef || config.db.projectRef) {
+    console.log(`  Supabase project: ${config.db.projectRef || config.supabase.projectRef || 'unknown'}`);
+  }
+
+  // Prove the keys belong to the project the URL names. A key from the other
+  // project is accepted silently and only fails at sign-in, which reads like a
+  // typo rather than a mismatched environment.
+  try {
+    const supabase = require('./lib/supabase');
+    if (supabase.isConfigured()) {
+      const check = await supabase.verify();
+      console.log(check.ok ? '  Supabase keys: verified' : `  Supabase keys: ${check.error}`);
+    }
+  } catch (err) {
+    console.log(`  Supabase keys: could not verify (${err.message})`);
+  }
+
+  try {
+    const t = await tenant.current();
+    console.log(`  Tenant: ${t.name} (${t.slug})`);
+  } catch (err) {
+    console.error(`  Could not reach the database: ${err.message}`);
+    console.error('  The app is up, but every page will error until DATABASE_URL works.');
+  }
+
+  if (config.cron.enabled) {
+    try {
+      require('./jobs/scheduler').start();
+    } catch (err) {
+      console.error('  Scheduler failed to start:', err.message);
+    }
+  }
+}
+
+function start() {
   // Without these, a stray rejection kills the process with no explanation and
   // the host serves 503 while you guess. Log loudly, then exit so the
   // supervisor restarts us cleanly.
@@ -178,57 +224,20 @@ async function start() {
     process.exit(1);
   });
 
-  const problems = config.validate();
-  if (problems.length) {
-    console.warn('\n  Configuration warnings:');
-    problems.forEach((p) => console.warn(`   • ${p}`));
-    console.warn('');
-  }
-
-  // Say plainly which environment and which Supabase project this process is
-  // talking to. Confusing staging for production is the expensive mistake in a
-  // two-environment setup, and it is almost always preventable by looking.
-  console.log(`\n  Environment: ${config.env.toUpperCase()}`);
-  if (config.supabase.projectRef || config.db.projectRef) {
-    console.log(`  Supabase project: ${config.db.projectRef || config.supabase.projectRef || 'unknown'}`);
-  }
-
-  // Prove the keys belong to the project the URL names. A key from the other
-  // project is accepted silently and only fails at sign-in, which reads like a
-  // typo rather than a mismatched environment.
-  try {
-    const supabase = require('./lib/supabase');
-    if (supabase.isConfigured()) {
-      const check = await supabase.verify();
-      console.log(check.ok ? `  Supabase keys: verified` : `  Supabase keys: ${check.error}`);
-    }
-  } catch (err) {
-    console.log(`  Supabase keys: could not verify (${err.message})`);
-  }
-
-  try {
-    const t = await tenant.current();
-    console.log(`  Tenant: ${t.name} (${t.slug})`);
-  } catch (err) {
-    console.error(`  Could not reach the database: ${err.message}`);
-    console.error('  The app will start, but every page will show an error until DATABASE_URL works.');
-  }
-
-  if (config.cron.enabled) {
-    try {
-      require('./jobs/scheduler').start();
-    } catch (err) {
-      console.error('  Scheduler failed to start:', err.message);
-    }
-  }
-
-  // Bind explicitly to all interfaces. Node does this by default when the host
+  // Listen FIRST. Nothing above this line may await.
+  //
+  // Bind explicitly to all interfaces: Node does this by default when the host
   // is omitted, but managed hosts route to the container's external interface
   // and an implicit bind is one more thing to wonder about at 2am.
   const server = app.listen(config.port, config.host, () => {
     console.log(`\n  ${config.appName} listening on ${config.host}:${config.port}`);
     console.log(`  ${config.appUrl}`);
     console.log(`  node ${process.version} · ${config.env}\n`);
+
+    // Now that the port is bound, take as long as we need.
+    reportStatus().catch((err) => {
+      console.error('  Status check failed:', err.message);
+    });
   });
 
   server.on('error', (err) => {
@@ -255,8 +264,14 @@ async function start() {
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-if (require.main === module) {
-  start();
-}
+// Start unconditionally.
+//
+// The usual `if (require.main === module)` guard breaks on hosts that *require*
+// the entry file rather than executing it as the main module — Hostinger's
+// Node.js hosting does exactly that, so the guard is false, listen() is never
+// called, and the platform kills the app with "did not call listen() within 3
+// seconds". Nothing in this project imports server.js, so there is no reason
+// for the guard to exist.
+start();
 
 module.exports = { app, start };
