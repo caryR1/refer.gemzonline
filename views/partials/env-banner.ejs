@@ -1,0 +1,9 @@
+<%# Loud reminder that this is not the live site. Hidden in production. %>
+<% if (!config.isProd) { %>
+  <div class="env-banner">
+    <span>
+      <%= config.env %> · <%= config.db.projectRef || config.supabase.projectRef || 'no project' %>
+      <%= config.smtp.configured ? '· email LIVE' : '· email off' %>
+    </span>
+  </div>
+<% } %>

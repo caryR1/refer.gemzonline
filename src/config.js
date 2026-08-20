@@ -30,11 +30,24 @@ const config = {
   tenantSlug: process.env.TENANT_SLUG || 'gemzonline',
   tenantName: process.env.TENANT_NAME || 'GemzOnline',
 
+  // Supabase has two generations of key naming. The older projects issue
+  // anon / service_role JWTs; newer ones issue sb_publishable_ / sb_secret_.
+  // They serve the same two roles, so accept either name rather than making
+  // people rename what the dashboard just handed them.
   supabase: {
     url: process.env.SUPABASE_URL || '',
-    anonKey: process.env.SUPABASE_ANON_KEY || '',
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+    anonKey: process.env.SUPABASE_ANON_KEY
+      || process.env.SUPABASE_PUBLISHABLE_KEY
+      || '',
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY
+      || process.env.SUPABASE_SECRET_KEY
+      || '',
+    // Only present on projects using the older symmetric signing. Newer
+    // projects sign asymmetrically and publish a JWKS URL instead, in which
+    // case this stays blank and sessions are verified against Supabase
+    // directly — correct, just one network hop per request.
     jwtSecret: process.env.SUPABASE_JWT_SECRET || '',
+    jwksUrl: process.env.SUPABASE_JWKS_URL || '',
     googleEnabled: bool(process.env.GOOGLE_SSO_ENABLED, true),
   },
 
@@ -100,8 +113,40 @@ config.smtp.configured = Boolean(config.smtp.enabled && config.smtp.host && conf
  * operator can sign in and read the diagnostics page instead of staring at a
  * crashed process.
  */
+/** The project ref embedded in a Supabase URL, e.g. https://<ref>.supabase.co */
+function refFromUrl(url) {
+  const m = /^https?:\/\/([a-z0-9]{16,})\.supabase\./i.exec(String(url || ''));
+  return m ? m[1] : null;
+}
+
+/**
+ * The project ref embedded in a pooler connection string, which carries it in
+ * the username: postgres.<ref>@aws-0-<region>.pooler.supabase.com
+ */
+function refFromDatabaseUrl(url) {
+  const m = /\/\/postgres\.([a-z0-9]{16,}):/i.exec(String(url || ''))
+    || /@db\.([a-z0-9]{16,})\.supabase\./i.exec(String(url || ''));
+  return m ? m[1] : null;
+}
+
+config.supabase.projectRef = refFromUrl(config.supabase.url);
+config.db.projectRef = refFromDatabaseUrl(config.db.url);
+
 config.validate = function validate() {
   const problems = [];
+
+  // Auth and data must live in the same project. When they do not, sign-up
+  // appears to work while creating accounts in one project and profile rows in
+  // another — a confusing, half-working state that is worth refusing outright.
+  const authRef = config.supabase.projectRef;
+  const dataRef = config.db.projectRef;
+  if (authRef && dataRef && authRef !== dataRef) {
+    problems.push(
+      `SUPABASE_URL points at project "${authRef}" but DATABASE_URL points at "${dataRef}". `
+      + 'Authentication and data would live in different projects. '
+      + 'Take every Supabase value — URL, keys and connection string — from one project.'
+    );
+  }
   if (!config.db.url) problems.push('DATABASE_URL is not set — the app cannot read or write data.');
   if (!config.supabase.url) problems.push('SUPABASE_URL is not set — sign-in will not work.');
   if (!config.supabase.anonKey) problems.push('SUPABASE_ANON_KEY is not set — sign-in will not work.');

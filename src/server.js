@@ -185,6 +185,27 @@ async function start() {
     console.warn('');
   }
 
+  // Say plainly which environment and which Supabase project this process is
+  // talking to. Confusing staging for production is the expensive mistake in a
+  // two-environment setup, and it is almost always preventable by looking.
+  console.log(`\n  Environment: ${config.env.toUpperCase()}`);
+  if (config.supabase.projectRef || config.db.projectRef) {
+    console.log(`  Supabase project: ${config.db.projectRef || config.supabase.projectRef || 'unknown'}`);
+  }
+
+  // Prove the keys belong to the project the URL names. A key from the other
+  // project is accepted silently and only fails at sign-in, which reads like a
+  // typo rather than a mismatched environment.
+  try {
+    const supabase = require('./lib/supabase');
+    if (supabase.isConfigured()) {
+      const check = await supabase.verify();
+      console.log(check.ok ? `  Supabase keys: verified` : `  Supabase keys: ${check.error}`);
+    }
+  } catch (err) {
+    console.log(`  Supabase keys: could not verify (${err.message})`);
+  }
+
   try {
     const t = await tenant.current();
     console.log(`  Tenant: ${t.name} (${t.slug})`);

@@ -107,6 +107,9 @@ so a fresh deployment can never lock you out.
 **Running it locally:** see [LOCAL-DEV.md](LOCAL-DEV.md) — including a test run
 worth doing before you trust it.
 
+**Staging vs production:** see [ENVIRONMENTS.md](ENVIRONMENTS.md) — two Supabase
+projects, one codebase, and how to promote a change safely.
+
 **Deploying to Hostinger:** see [DEPLOY-HOSTINGER.md](DEPLOY-HOSTINGER.md),
 which covers both a VPS and hPanel's Node.js hosting.
 

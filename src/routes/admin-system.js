@@ -14,6 +14,7 @@ const mailer = require('../lib/mailer');
 const whatsapp = require('../lib/whatsapp');
 const relations = require('../lib/relations');
 const setup = require('../lib/setup');
+const supabase = require('../lib/supabase');
 
 const router = express.Router();
 
@@ -98,8 +99,8 @@ router.get('/settings', async (req, res, next) => {
       setup.status(req.tenant.id),
     ]);
 
-    const [emailHealth, waHealth, dbHealth] = await Promise.all([
-      mailer.verify(), whatsapp.verify(), db.healthcheck(),
+    const [emailHealth, waHealth, dbHealth, authHealth] = await Promise.all([
+      mailer.verify(), whatsapp.verify(), db.healthcheck(), supabase.verify(),
     ]);
 
     res.render('admin/settings', {
@@ -111,6 +112,7 @@ router.get('/settings', async (req, res, next) => {
         email: emailHealth,
         whatsapp: waHealth,
         database: dbHealth,
+        auth: authHealth,
         analytics: { ok: Boolean(config.analytics.ga4Id), id: config.analytics.ga4Id },
         google: { ok: config.supabase.googleEnabled },
       },

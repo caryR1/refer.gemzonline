@@ -97,6 +97,11 @@
           <td class="muted small"><%= health.database.error || 'Queries responding normally.' %></td>
         </tr>
         <tr>
+          <td class="primary">Supabase auth</td>
+          <td><span class="badge <%= health.auth.ok ? 'green' : 'red' %>"><%= health.auth.ok ? 'verified' : 'mismatch' %></span></td>
+          <td class="muted small"><%= health.auth.ok ? health.auth.note : health.auth.error %></td>
+        </tr>
+        <tr>
           <td class="primary">Email (SMTP)</td>
           <td><span class="badge <%= health.email.ok ? 'green' : 'red' %>"><%= health.email.ok ? 'ready' : 'not working' %></span></td>
           <td class="muted small"><%= health.email.error || 'Hostinger SMTP verified.' %></td>

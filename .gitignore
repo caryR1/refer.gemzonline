@@ -36,3 +36,10 @@ Thumbs.db
 
 # Uploads written at runtime
 public/uploads/
+
+# Any file with "env" in the name that is not the example — catches
+# .env_test.txt, env.local, my.env and similar, which the patterns above miss.
+*env*.txt
+*.env
+env.*
+!.env.example
