@@ -140,16 +140,37 @@ app.get('/', (req, res) => {
 // Errors
 // ---------------------------------------------------------------------------
 app.use((req, res) => {
-  res.status(404).render('errors/404', { title: 'Page not found' });
+  res.status(404).render('errors/404', {
+    title: 'Page not found',
+    layout: 'layouts/bare',
+  });
 });
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error('[error]', err.stack || err.message);
   const status = err.status || 500;
+
+  // The error page is the last thing standing between a fault and the user, so
+  // it must not be able to fail. When rendering it throws -- a missing partial,
+  // a template mistake -- Express hands that second error back to this same
+  // handler and the response ends as a bare stack trace about the error page,
+  // with the ORIGINAL error nowhere in sight. Catch it and fall back to plain
+  // text, which needs nothing but the socket.
   res.status(status).render('errors/500', {
     title: 'Something went wrong',
+    layout: 'layouts/bare',
     message: config.isProd ? null : (err.stack || err.message),
+  }, (renderErr, html) => {
+    if (!renderErr) return res.send(html);
+
+    console.error('[error] the error page itself failed to render:', renderErr.stack || renderErr.message);
+    return res.type('text/plain').send(
+      config.isProd
+        ? 'Something went wrong. The problem has been logged.'
+        : `Something went wrong.\n\nOriginal error:\n${err.stack || err.message}\n\n`
+          + `Then the error page failed to render:\n${renderErr.stack || renderErr.message}\n`
+    );
   });
 });
 

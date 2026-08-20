@@ -66,9 +66,25 @@ for (const file of files) {
     continue;
   }
 
+  // `layout('layouts/bare')` inside a template is ejs-locals syntax. This
+  // project uses express-ejs-layouts, where the layout is chosen by passing
+  // `layout: 'layouts/bare'` in the render options. The call compiles fine and
+  // only throws "layout is not defined" when the page is actually rendered --
+  // which, for an error page, is the first moment something else has already
+  // gone wrong and you can least afford a second fault. Catch it here.
+  if (/<%[^%]*\blayout\s*\(/.test(source)) {
+    console.error(`FAIL ${rel}\n  calls layout(...) inside the template. express-ejs-layouts does not`
+      + `\n  define that function. Pass { layout: 'layouts/bare' } in the render options instead.`);
+    failures += 1;
+    continue;
+  }
+
   try {
+    // Only the locals EJS actually provides. Do not add 'layout' to this list:
+    // having it there kept the checker green while every render of the two
+    // error pages threw ReferenceError.
     // eslint-disable-next-line no-new-func
-    new Function('locals', 'include', 'layout', compile(source));
+    new Function('locals', 'include', compile(source));
   } catch (err) {
     console.error(`FAIL ${rel}\n  ${err.message}`);
     failures += 1;
