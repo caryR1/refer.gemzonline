@@ -130,12 +130,36 @@ function isoDate(value = new Date(), zone = STAFF_TZ) {
   return dt.setZone(safeZone(zone)).toFormat('yyyy-LL-dd');
 }
 
+/**
+ * The two halves of a date+time input pair, in a given zone.
+ *
+ * `inputTime` is deliberately 24-hour: that is what `<input type="time">`
+ * submits and expects however the browser chooses to display it, so a field
+ * left untouched round-trips through an edit unchanged.
+ *
+ * Both return '' rather than today's date for an absent value — an empty
+ * appointment field must look empty, not pre-filled with a time nobody chose.
+ */
+function inputDate(value, zone = STAFF_TZ) {
+  if (!value) return '';
+  const dt = value instanceof Date ? DateTime.fromJSDate(value) : DateTime.fromISO(String(value));
+  return dt.isValid ? dt.setZone(safeZone(zone)).toFormat('yyyy-LL-dd') : '';
+}
+
+function inputTime(value, zone = STAFF_TZ) {
+  if (!value) return '';
+  const dt = value instanceof Date ? DateTime.fromJSDate(value) : DateTime.fromISO(String(value));
+  return dt.isValid ? dt.setZone(safeZone(zone)).toFormat('HH:mm') : '';
+}
+
 module.exports = {
   STAFF_TZ,
   COMMON_TIMEZONES,
   isValidZone,
   safeZone,
   localInputToDate,
+  inputDate,
+  inputTime,
   fmt,
   fmtDate,
   fmtShort,

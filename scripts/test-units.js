@@ -3,11 +3,16 @@
 
 /**
  * Unit tests for the pure logic — the parts where a mistake costs money or
- * leaks data. No database, no network, no dependencies.
+ * leaks data. No database, no network.
  *
  *   npm test
  *
- * The schema's own guarantees are tested separately by db/verify.sql.
+ * The timezone group needs luxon, which the app depends on anyway; it skips
+ * loudly on a checkout with no node_modules rather than failing. Everything
+ * else runs on a bare Node.
+ *
+ * The schema's own guarantees are tested separately by db/verify.sql, and the
+ * SQL those queries actually send by scripts/check-sql.js.
  */
 
 const assert = require('assert');
@@ -267,6 +272,73 @@ test('both on means it sends', () => assert.strictEqual(effective(true, true), t
 test('the user can mute what admin left on', () => assert.strictEqual(effective(true, false), false));
 test('an admin block wins even when the user wants it', () => assert.strictEqual(effective(false, true), false));
 test('both off stays off', () => assert.strictEqual(effective(false, false), false));
+
+// ---------------------------------------------------------------------------
+group('Appointment times across timezones');
+
+// The only group here that needs a dependency. Luxon is a runtime dependency of
+// the app, so this runs wherever the app can run — but the checks are written to
+// skip loudly rather than fail on a bare checkout with no node_modules, since a
+// missing library is not a broken timezone.
+let tz = null;
+try {
+  tz = require('../src/lib/tz');
+} catch (err) {
+  console.log('  skipped — luxon is not installed (run npm install to include these)');
+}
+
+const tzTest = tz ? test : (name) => console.log(`  skip ${name}`);
+
+tzTest('a time typed in the prospect zone comes back unchanged', () => {
+  // The whole point of the admin editor: type 2pm for a London prospect, and
+  // the form still says 2pm when you reopen it — not 9am Kingston time.
+  const at = tz.localInputToDate('2026-09-15', '14:00', 'Europe/London');
+  assert.strictEqual(tz.inputDate(at, 'Europe/London'), '2026-09-15');
+  assert.strictEqual(tz.inputTime(at, 'Europe/London'), '14:00');
+});
+
+tzTest('the same instant reads differently in the admin zone, as it should', () => {
+  const at = tz.localInputToDate('2026-09-15', '14:00', 'Europe/London');
+  // London is UTC+1 in September; Jamaica is UTC-5 all year. 14:00 - 6h = 08:00.
+  assert.strictEqual(tz.inputTime(at, 'America/Jamaica'), '08:00');
+});
+
+tzTest('an empty appointment renders as empty, not as today', () => {
+  // A blank field that pre-fills with today's date invites an accidental
+  // booking nobody chose.
+  assert.strictEqual(tz.inputDate(null, 'America/Jamaica'), '');
+  assert.strictEqual(tz.inputTime(null, 'America/Jamaica'), '');
+  assert.strictEqual(tz.inputDate(undefined), '');
+});
+
+tzTest('a half-filled input yields no appointment at all', () => {
+  assert.strictEqual(tz.localInputToDate('2026-09-15', '', 'America/Jamaica'), null);
+  assert.strictEqual(tz.localInputToDate('', '14:00', 'America/Jamaica'), null);
+});
+
+tzTest('an unknown timezone falls back rather than producing a wrong time', () => {
+  const at = tz.localInputToDate('2026-09-15', '14:00', 'Mars/Olympus_Mons');
+  assert.ok(at instanceof Date && !Number.isNaN(at.getTime()));
+  assert.strictEqual(tz.inputTime(at, tz.STAFF_TZ), '14:00', 'should have used the staff zone');
+});
+
+tzTest('midnight survives the round trip', () => {
+  // 00:00 is where a naive implementation drops the time and shifts the date.
+  const at = tz.localInputToDate('2026-09-15', '00:00', 'America/Jamaica');
+  assert.strictEqual(tz.inputDate(at, 'America/Jamaica'), '2026-09-15');
+  assert.strictEqual(tz.inputTime(at, 'America/Jamaica'), '00:00');
+});
+
+tzTest('a time inside a daylight-saving shift still round-trips', () => {
+  // New York moves its clock on 1 November 2026. A booking either side of it
+  // must still read back as what was typed.
+  const before = tz.localInputToDate('2026-10-30', '14:30', 'America/New_York');
+  const after = tz.localInputToDate('2026-11-05', '14:30', 'America/New_York');
+  assert.strictEqual(tz.inputTime(before, 'America/New_York'), '14:30');
+  assert.strictEqual(tz.inputTime(after, 'America/New_York'), '14:30');
+  // And they are genuinely different instants in UTC, an hour apart in offset.
+  assert.notStrictEqual(before.getUTCHours(), after.getUTCHours());
+});
 
 // ---------------------------------------------------------------------------
 group('Rank terms');

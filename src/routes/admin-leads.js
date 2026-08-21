@@ -164,6 +164,7 @@ router.get('/leads/:id', async (req, res, next) => {
       basis,
       productList,
       emailTemplates,
+      timezones: tz.COMMON_TIMEZONES,
       reopenStatuses: util.LEAD_STATUSES.filter((s) => !s.value.startsWith('closed')),
     });
   } catch (err) {
@@ -464,31 +465,160 @@ router.post('/leads/:id/account', async (req, res, next) => {
   }
 });
 
+/**
+ * Set, move or clear a lead's appointment.
+ *
+ * Times are entered in the PROSPECT'S timezone, not the admin's. That is the
+ * zone the prospect chose, the zone their confirmation email quotes, and the
+ * zone they will actually be sitting in when the phone rings. An admin in
+ * Kingston booking a prospect in London who types "2pm" means 2pm for the
+ * prospect — anything else invites a call at the wrong hour, and the mistake is
+ * invisible until nobody answers.
+ *
+ * The same selector doubles as the fix for a prospect who picked the wrong zone
+ * on the form, because that mistake makes every displayed time wrong and there
+ * was previously no way to correct it.
+ */
 router.post('/leads/:id/appointment', async (req, res, next) => {
   try {
     const lead = await db.one('select * from leads where id = $1 and tenant_id = $2', [req.params.id, req.tenant.id]);
     if (!lead) return next();
 
+    const zone = tz.safeZone(req.body.timezone, lead.timezone);
+    const back = `/admin/leads/${lead.id}#appointment`;
+
+    // Clearing is an explicit choice, not an accident of leaving fields blank.
+    if (util.bool(req.body.clear)) {
+      const cleared = await db.one(
+        `update leads set appointment_primary_at = null, appointment_backup_at = null,
+                confirmed_slot = null
+          where id = $1 returning *`,
+        [lead.id]
+      );
+      await db.query('delete from reminder_sends where lead_id = $1', [lead.id]);
+
+      await audit.log({
+        tenantId: req.tenant.id, req,
+        action: 'lead.appointment_changed',
+        entityType: 'lead',
+        entityId: lead.id,
+        summary: `Cleared the appointment for ${lead.email}`,
+        before: {
+          appointment_primary_at: lead.appointment_primary_at,
+          appointment_backup_at: lead.appointment_backup_at,
+        },
+        after: { appointment_primary_at: null, appointment_backup_at: null },
+      });
+
+      req.flash('success', 'Appointment cleared. No reminders will be sent.');
+      return res.redirect(back);
+    }
+
+    const primaryAt = tz.localInputToDate(req.body.primary_date, req.body.primary_time, zone);
+    const backupAt = tz.localInputToDate(req.body.backup_date, req.body.backup_time, zone);
+
+    const errors = [];
+    if (req.body.primary_date && !req.body.primary_time) errors.push('The primary appointment needs a time as well as a date.');
+    if (req.body.primary_time && !req.body.primary_date) errors.push('The primary appointment needs a date as well as a time.');
+    if (req.body.backup_date && !req.body.backup_time) errors.push('The backup appointment needs a time as well as a date.');
+    if (req.body.backup_time && !req.body.backup_date) errors.push('The backup appointment needs a date as well as a time.');
+    if (backupAt && !primaryAt) errors.push('Set a primary time before a backup one.');
+    if (primaryAt && backupAt && primaryAt.getTime() === backupAt.getTime()) {
+      errors.push('The backup time is the same as the primary one — a backup is only useful if it differs.');
+    }
+
+    if (errors.length) {
+      req.flash('error', errors.join(' '));
+      return res.redirect(back);
+    }
+
     const slot = req.body.confirmed_slot === 'backup' ? 'backup'
       : (req.body.confirmed_slot === 'primary' ? 'primary' : null);
 
-    await db.query('update leads set confirmed_slot = $2 where id = $1', [lead.id, slot]);
-    await db.query('delete from reminder_sends where lead_id = $1', [lead.id]);
+    const moved = String(lead.appointment_primary_at || '') !== String(primaryAt || '')
+      || String(lead.appointment_backup_at || '') !== String(backupAt || '');
+
+    const updated = await db.one(
+      `update leads set
+         timezone = $2,
+         appointment_primary_at = $3,
+         appointment_backup_at  = $4,
+         -- A confirmed slot that no longer has a time behind it is worse than
+         -- none: reminders would follow a booking that does not exist.
+         confirmed_slot = case
+           when $5::appointment_slot = 'backup'  and $4::timestamptz is null then null
+           when $5::appointment_slot = 'primary' and $3::timestamptz is null then null
+           else $5::appointment_slot end,
+         status = case
+           when status = 'new' and $3::timestamptz is not null then 'appointment_set'::lead_status
+           else status end
+       where id = $1::uuid
+       returning *`,
+      [lead.id, zone, primaryAt, backupAt, slot]
+    );
+
+    // Reminders already sent are recorded so they are not sent twice. When the
+    // time moves, that record is about a different appointment — clear it, or
+    // the "1 hour before" nudge for the new time never fires because the old
+    // one is marked done.
+    if (moved) await db.query('delete from reminder_sends where lead_id = $1', [lead.id]);
+
+    await db.query(
+      `insert into lead_notes (tenant_id, lead_id, author_id, author_name, kind, body)
+       values ($1,$2,$3,$4,'status_change',$5)`,
+      [
+        req.tenant.id, lead.id, req.user.id, req.user.full_name || req.user.email,
+        primaryAt
+          ? `Appointment set by ${req.user.full_name || req.user.email}.\n`
+            + `Primary: ${tz.fmtDual(primaryAt, zone)}\n`
+            + `Backup: ${backupAt ? tz.fmtDual(backupAt, zone) : 'none'}`
+          : 'Appointment times removed.',
+      ]
+    );
 
     await audit.log({
       tenantId: req.tenant.id, req,
       action: 'lead.appointment_changed',
       entityType: 'lead',
       entityId: lead.id,
-      summary: `Confirmed the ${slot || 'primary (default)'} slot for ${lead.email}`,
-      before: { confirmed_slot: lead.confirmed_slot },
-      after: { confirmed_slot: slot },
+      summary: primaryAt
+        ? `Appointment for ${lead.email} set to ${tz.fmt(primaryAt, zone)}`
+        : `Appointment times removed for ${lead.email}`,
+      before: {
+        appointment_primary_at: lead.appointment_primary_at,
+        appointment_backup_at: lead.appointment_backup_at,
+        confirmed_slot: lead.confirmed_slot,
+        timezone: lead.timezone,
+      },
+      after: {
+        appointment_primary_at: primaryAt,
+        appointment_backup_at: backupAt,
+        confirmed_slot: updated.confirmed_slot,
+        timezone: zone,
+      },
     });
 
-    req.flash('success', `Reminders will now follow the ${slot || 'primary'} time.`);
-    return res.redirect(`/admin/leads/${lead.id}`);
+    // Telling the prospect is opt-in. Correcting a typo in a backup time does
+    // not warrant an email; moving the call they are expecting does.
+    let told = false;
+    if (util.bool(req.body.notify) && primaryAt) {
+      const [campaign, agent] = await Promise.all([
+        db.one('select * from campaigns where id = $1', [lead.campaign_id]),
+        lead.agent_id ? db.one('select * from profiles where id = $1', [lead.agent_id]) : null,
+      ]);
+      const event = lead.appointment_primary_at ? 'appointment_rescheduled' : 'appointment_set';
+      notify.fire(event, { tenantId: req.tenant.id, lead: updated, agent, campaign })
+        .catch((e) => console.error(`[notify] ${event} failed:`, e.message));
+      told = true;
+    }
+
+    req.flash('success', primaryAt
+      ? `Appointment set for ${tz.fmt(primaryAt, zone)}${told ? ' and the prospect has been told.' : '.'}`
+      : 'Appointment times removed.');
+
+    return res.redirect(back);
   } catch (err) {
-    next(err);
+    return next(err);
   }
 });
 

@@ -78,37 +78,112 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-head"><h2>Appointment</h2></div>
+    <div class="card" id="appointment">
+      <div class="card-head">
+        <div>
+          <h2>Appointment</h2>
+          <p class="sub">
+            Times are in the prospect's own timezone — the one their confirmation
+            quotes and the one they will be sitting in when you call.
+          </p>
+        </div>
+      </div>
       <div class="card-body">
         <% if (lead.appointment_primary_at) { %>
-          <dl class="kv mb-2">
+          <dl class="kv mb-3">
             <dt>Primary</dt>
             <dd>
               <strong><%= tz.fmtShort(lead.appointment_primary_at, user.timezone) %></strong>
-              <div class="muted small">their time: <%= tz.fmt(lead.appointment_primary_at, lead.timezone) %></div>
+              <span class="muted small">your time</span>
+              <div class="muted small">theirs: <%= tz.fmt(lead.appointment_primary_at, lead.timezone) %></div>
             </dd>
             <% if (lead.appointment_backup_at) { %>
               <dt>Backup</dt>
               <dd>
                 <%= tz.fmtShort(lead.appointment_backup_at, user.timezone) %>
-                <div class="muted small">their time: <%= tz.fmt(lead.appointment_backup_at, lead.timezone) %></div>
+                <div class="muted small">theirs: <%= tz.fmt(lead.appointment_backup_at, lead.timezone) %></div>
               </dd>
             <% } %>
           </dl>
-
-          <form method="post" action="/admin/leads/<%= lead.id %>/appointment" class="flex wrap">
-            <select name="confirmed_slot" style="max-width:230px">
-              <option value="" <%= !lead.confirmed_slot ? 'selected' : '' %>>Primary (assumed)</option>
-              <option value="primary" <%= lead.confirmed_slot === 'primary' ? 'selected' : '' %>>Primary — confirmed</option>
-              <option value="backup" <%= lead.confirmed_slot === 'backup' ? 'selected' : '' %>>Backup — confirmed</option>
-            </select>
-            <button class="btn secondary sm" type="submit">Set confirmed slot</button>
-          </form>
-          <p class="help mt-1 mb-0">Reminders follow whichever slot is confirmed.</p>
         <% } else { %>
-          <p class="muted small mb-0">No appointment booked.</p>
+          <p class="muted small">No appointment booked yet.</p>
         <% } %>
+
+        <form method="post" action="/admin/leads/<%= lead.id %>/appointment">
+          <div class="field">
+            <label for="appt_tz">Prospect's timezone</label>
+            <select id="appt_tz" name="timezone">
+              <% timezones.forEach(function (z) { %>
+                <option value="<%= z %>" <%= lead.timezone === z ? 'selected' : '' %>><%= z.replace(/_/g, ' ') %></option>
+              <% }); %>
+            </select>
+            <div class="help">
+              Everything below is entered in this zone. Correcting it here also fixes
+              a prospect who picked the wrong one on the form.
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="primary_date">Primary date</label>
+              <input type="date" id="primary_date" name="primary_date"
+                     value="<%= tz.inputDate(lead.appointment_primary_at, lead.timezone) %>">
+            </div>
+            <div class="field">
+              <label for="primary_time">Primary time</label>
+              <input type="time" id="primary_time" name="primary_time"
+                     value="<%= tz.inputTime(lead.appointment_primary_at, lead.timezone) %>">
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="backup_date">Backup date <span class="muted small">(optional)</span></label>
+              <input type="date" id="backup_date" name="backup_date"
+                     value="<%= tz.inputDate(lead.appointment_backup_at, lead.timezone) %>">
+            </div>
+            <div class="field">
+              <label for="backup_time">Backup time</label>
+              <input type="time" id="backup_time" name="backup_time"
+                     value="<%= tz.inputTime(lead.appointment_backup_at, lead.timezone) %>">
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="confirmed_slot">Which one is confirmed?</label>
+            <select id="confirmed_slot" name="confirmed_slot">
+              <option value="" <%= !lead.confirmed_slot ? 'selected' : '' %>>Not confirmed — assume primary</option>
+              <option value="primary" <%= lead.confirmed_slot === 'primary' ? 'selected' : '' %>>Primary, confirmed</option>
+              <option value="backup" <%= lead.confirmed_slot === 'backup' ? 'selected' : '' %>>Backup, confirmed</option>
+            </select>
+            <div class="help">Reminders follow whichever slot is confirmed.</div>
+          </div>
+
+          <div class="check">
+            <input type="checkbox" id="notify_prospect" name="notify" value="1"
+                   <%= lead.appointment_primary_at ? '' : 'checked' %>>
+            <div>
+              <label for="notify_prospect">Tell the prospect</label>
+              <div class="help">
+                Sends the confirmation or reschedule email. Leave it off for a
+                correction they do not need to hear about.
+              </div>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn" type="submit" data-busy="Saving…">Save appointment</button>
+            <% if (lead.appointment_primary_at) { %>
+              <button class="btn ghost sm" type="submit" name="clear" value="1" formnovalidate data-no-lock
+                      data-confirm="Remove the appointment times? Reminders will stop.">
+                Clear appointment
+              </button>
+            <% } %>
+          </div>
+          <p class="small muted mt-2 mb-0">
+            Moving a time resets the reminder history, so the nudges fire again for the new one.
+          </p>
+        </form>
       </div>
     </div>
 
