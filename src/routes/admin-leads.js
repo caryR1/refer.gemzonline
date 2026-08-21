@@ -215,17 +215,24 @@ router.post('/leads/:id/status', async (req, res, next) => {
     }
 
     const updated = await db.one(
-      `update leads set status = $2,
-              closed_at = case when $3 then now() else null end,
+      // $2 is bound as TEXT and cast to the enum where it is assigned.
+      //
+      // Without the cast Postgres deduces $2 two different ways in one
+      // statement -- lead_status from `status = $2`, text from `$2 =
+      // 'closed_won'` -- and refuses the whole query with "inconsistent types
+      // deduced for parameter $2". Comparing the text form is what makes both
+      // readings agree.
+      `update leads set status = $2::lead_status,
+              closed_at = case when $3::boolean then now() else null end,
               account_active = case when $2 = 'closed_won' then account_active else false end,
               account_started_on = case when $2 = 'closed_won' then account_started_on else null end,
               last_contacted_at = case when $2 = 'contacted' then now() else last_contacted_at end,
               -- Copied, not just referenced: repricing a product next quarter
               -- must not reprice a deal that closed this one.
-              product_id    = coalesce($4, product_id),
-              product_name  = coalesce($5, product_name),
-              product_value = coalesce($6, product_value)
-        where id = $1 returning *`,
+              product_id    = coalesce($4::uuid, product_id),
+              product_name  = coalesce($5::text, product_name),
+              product_value = coalesce($6::numeric, product_value)
+        where id = $1::uuid returning *`,
       [
         lead.id, status, closing,
         product ? product.id : null,

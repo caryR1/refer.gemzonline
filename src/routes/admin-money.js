@@ -95,9 +95,12 @@ router.post('/commissions/:id/status', async (req, res, next) => {
     if (!status || status === row.status) return res.redirect(req.get('referer') || '/admin/commissions');
 
     const updated = await db.one(
-      `update commissions set status = $2,
+      // $2 is bound as TEXT and cast to the enum where it is assigned. Without
+      // the cast Postgres deduces it two ways in one statement and refuses the
+      // query with "inconsistent types deduced for parameter $2".
+      `update commissions set status = $2::commission_status,
               paid_at = case when $2 = 'paid' then now() else null end
-        where id = $1 returning *`,
+        where id = $1::uuid returning *`,
       [row.id, status]
     );
 
@@ -140,8 +143,12 @@ router.post('/commissions/bulk', async (req, res, next) => {
     }
 
     const rows = await db.all(
-      `update commissions set status = $2, paid_at = case when $2 = 'paid' then now() else null end
-        where tenant_id = $1 and id = any($3::uuid[]) returning *`,
+      // $2 is bound as TEXT and cast to the enum where it is assigned. Without
+      // the cast Postgres deduces it two ways in one statement and refuses the
+      // query with "inconsistent types deduced for parameter $2".
+      `update commissions set status = $2::commission_status,
+              paid_at = case when $2 = 'paid' then now() else null end
+        where tenant_id = $1::uuid and id = any($3::uuid[]) returning *`,
       [req.tenant.id, status, ids]
     );
 

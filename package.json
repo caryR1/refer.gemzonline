@@ -13,9 +13,10 @@
     "db:seed": "node scripts/seed.js",
     "db:verify": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/verify.sql",
     "create:admin": "node scripts/create-admin.js",
-    "test": "node scripts/test-units.js && node scripts/check-views.js && node scripts/check-routes.js",
+    "test": "node scripts/test-units.js && node scripts/check-views.js && node scripts/check-routes.js && node scripts/check-sql.js",
     "check:views": "node scripts/check-views.js",
     "check:routes": "node scripts/check-routes.js",
+    "check:sql": "node scripts/check-sql.js",
     "check:prod": "node scripts/check-prod.js"
   },
   "dependencies": {

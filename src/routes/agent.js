@@ -431,9 +431,12 @@ router.post('/leads/:id/status', async (req, res, next) => {
     if (status === lead.status) return res.redirect(`/agent/leads/${lead.id}`);
 
     const updated = await db.one(
-      `update leads set status = $2,
+      // $2 is bound as TEXT and cast to the enum where it is assigned. Without
+      // the cast Postgres deduces it two ways in one statement and refuses the
+      // query with "inconsistent types deduced for parameter $2".
+      `update leads set status = $2::lead_status,
               last_contacted_at = case when $2 = 'contacted' then now() else last_contacted_at end
-        where id = $1 returning *`,
+        where id = $1::uuid returning *`,
       [lead.id, status]
     );
 
